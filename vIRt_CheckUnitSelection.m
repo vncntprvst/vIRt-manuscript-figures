@@ -2,7 +2,7 @@ function [keepList,qualityReport]=vIRt_CheckUnitSelection(whiskers,bWhisk,ephys,
 
 unitQuality=SSQualityMetrics(ephys.spikes);
 unitIndex=unique(double(ephys.spikes.unitID));
-unitIdx=ismember(ephys.spikes.unitID,unitIndex(unitQuality>0.6,1));
+unitIdx=ismember(ephys.spikes.unitID,unitIndex);%(unitQuality>0.6,1) no quality threshold here
 unitFrequency=(hist(double(ephys.spikes.unitID(unitIdx)),...
     unique(double(ephys.spikes.unitID(unitIdx))))/sum(unitIdx))';
 keepIndex=ismember(unitIndex,ephys.selectedUnits);
@@ -24,7 +24,7 @@ for unitNum=1:numel(keepList)
     % Tuning
     NBC_Plots_PhaseTuning(whiskers(bWhisk).angle,whiskers(bWhisk).phase,...
         ephys,wEpochMask,'whisking',false,false);
-    answer = questdlg('Check individual epochs?','Phase Tuning Plots', ...
+    answer = questdlg('Check individual epochs?','Phase Tuning', ...
         'Yes', 'No','No');
     switch answer
         case 'Yes'
