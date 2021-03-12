@@ -1,7 +1,4 @@
-function [thetas,phaseStats,phaseTuning]=vIRt_PhaseTuning(whiskerPhase,ephysData,dataMask,splitEpochs)
-
-% if isfield(ephysData.recInfo,'sessionName'); recName=ephysData.recInfo.sessionName;
-% else; recName='PhaseTuning_polarPlot'; end
+function [thetas,phaseStats,phaseTuning,phaseCoherence]=vIRt_PhaseTuning(whiskerPhase,ephysData,dataMask,splitEpochs)
 
 %% Data masking: look at each whisking epoch
 wEpochs.behav=bwconncomp(dataMask.behav);
@@ -29,9 +26,10 @@ end
 spikeRasters = ephysData.rasters(ephysData.selectedUnits,:);
 spikeRate=ephysData.spikeRate(ephysData.selectedUnits,:);
 phaseStats=struct('mean',[],'median',[],'var',[],'std',[],...
-           'std0',[],'skewness',[],'skewness0',[],'kurtosis',[],...
-      'kurtosis0',[]);
-
+    'std0',[],'skewness',[],'skewness0',[],'kurtosis',[],...
+    'kurtosis0',[]);
+phaseCoherence=struct('coherMag',[],'coherPhase',[],'freqVals',[],...
+    'peakCoherMag',[],'peakCoherPhase',[],'confC',[],'phistd',[],'Cerr',[]);
 for unitNum=1:size(spikeRasters,1)
     
     if mean(spikeRate(unitNum,:)) < 0.5
@@ -52,7 +50,7 @@ for unitNum=1:size(spikeRasters,1)
         centers = mean([ edges(1:end-1); edges(2:end) ]);
         [ ~, ~, phaseBins ] = histcounts(eWhiskerPhase, edges);
         samplingRate=1000; %change in case this isn't at 1kHz SR
-
+        
         try
             unitSpikeEvent=spikeRasters(unitNum,wEpochs.ephys.PixelIdxList{wEpochNum});
             attribPhaseBin = phaseBins(logical(unitSpikeEvent));
@@ -75,7 +73,10 @@ for unitNum=1:size(spikeRasters,1)
             %     fit sine wave
             %     modulation depth of the averaged whisking response
             
-            
+            phaseCoherence(wEpochNum)=vIRt_PhaseCoherence(eWhiskerPhase(1:min([90000 end])),...
+                unitSpikeEvent(1:min([90000 end]))); %limit to 30s
+%             phaseCoherence(wEpochNum)=vIRt_PhaseCoherence(eWhiskerPhase,unitSpikeEvent);
+
             clearvars unitSpikeRate
             eSpikeRate= spikeRate(unitNum,wEpochs.ephys.PixelIdxList{wEpochNum});
             
@@ -120,5 +121,78 @@ for unitNum=1:size(spikeRasters,1)
         catch
             continue
         end
+    end
+    
+    %% check figure
+    if false 
+        labels = 'whisking';
+        cmap=lines;cmap=[cmap(1:7,:);(lines+flipud(copper))/2;autumn];
+        if isfield(ephysData.recInfo,'sessionName'); recName=ephysData.recInfo.sessionName;
+        else; recName='PhaseTuning_polarPlot'; end
+
+        figure('name',['Unit ' num2str(ephysData.selectedUnits(unitNum)) ' - ' recName ...
+            ' - Tuning to ' labels ' phase'],'Color','white','position',...
+            [1059 106 355 935]);
+        %         end
+        
+        %         %         ptWhisks=bwconncomp(eWhiskerPhase>0);
+        %         %% probability density function of phase for spiking events
+        %         numBins=32; % each bin = pi/16 radians
+        %         edges = linspace(min(eWhiskerPhase), max(eWhiskerPhase), numBins*2+1);
+        %         %         edges = linspace(-pi-pi/numBins,pi+pi/numBins, numBins+1);
+        %         centers = mean([ edges(1:end-1); edges(2:end) ]);
+        %         [ ~, ~, phaseBins ] = histcounts(eWhiskerPhase, edges);
+        %         samplingRate=1000; %change in case this isn't at 1kHz SR
+        %         phaseTuning=nan(size(spikeRate,1),numEpochs);
+        
+        % polar plot
+        if ~isnan(phaseTuning(wEpochNum))
+            phEdgeColor=cmap(unitNum,:);phFaceColor=cmap(unitNum,:);
+        else
+            phEdgeColor='k';phFaceColor='k'; %EdgeAlpha=0.5;
+        end
+        
+        subplot(3,1,1);
+        polarhistogram(thetas{wEpochNum},edges,'Displaystyle','bar',...
+            'Normalization','count','LineWidth',2,...
+            'EdgeColor',phEdgeColor,'FaceColor',phFaceColor,...
+            'EdgeAlpha',0);
+        paH = gca;
+        paH.ThetaZeroLocation='left';
+        paH.ThetaTickLabel={'max Protraction','','','Retraction','','',...
+            'max Retraction','','','Protraction','',''};
+        paH.ThetaDir = 'counterclockwise';
+        
+        title(['Unit ' num2str(ephysData.selectedUnits(unitNum)) ' - ' strrep(recName,'_','') ...
+            ' - Tuning to ' labels ' phase'],'interpreter','none');
+        
+        %plot PDF
+        subplot(3,1,2); hold on ;
+        plot(linspace(-pi,pi, numBins+1),spikePhasePDF,'linewidth',1.2,'Color', [0 0 0]); %centers
+        plot(linspace(-pi,pi, numBins+1),phasePDF,'linewidth',1.2,'Color', [0 0 0 0.5]); %centers
+        set(gca,'ytick',0:0.05:1,...
+            'xlim',[-pi pi],'xtick',[-pi 0 pi],'xticklabel',{'-\pi','0','\pi'},...
+            'tickdir','out');
+        axis tight
+        legend('P(\phi_k|spike)','P(\phi_k)','location','southeast')
+        legend('boxoff')
+        title({'Probability density function'; 'of phase for spiking events'})
+        
+        subplot(3,1,3);hold on;
+        plot(linspace(-pi,pi, numBins+1), rsbinMeanSpikeRate, 'LineWidth',2) %centers %,'color',cmap(unitNum,:));%'k'
+        
+        axis tight
+        yl = ylim;
+        ylim([0 yl(2)]);
+        text(0,  yl(2)/10, '0 = Max protraction')
+        set(gca,'xlim',[-pi pi],'xtick',[-pi 0 pi],'xticklabel',{'-\pi','0','\pi'},...
+            'tickdir','out');
+        box off
+        if wEpochs.behav.NumObjects==1
+            xlabel('Phase (radians)')
+            ylabel('Spike rate (Hz)')
+        end
+        title({'Average spike rate'; ['across ' labels ' phase']})
+        % set(gca,'xdir', 'reverse'); %, 'ydir', 'reverse')
     end
 end
