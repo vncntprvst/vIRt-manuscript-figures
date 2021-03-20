@@ -10,9 +10,15 @@ params.pad=0; % pad factor for fft
 params.err=[2 0.01];
 params.trialave=0;
 
-[pCoh.coherMag,pCoh.coherPhase,~,~,~,pCoh.freqVals,~,pCoh.confC,pCoh.phistd,pCoh.Cerr]=coherencycpb(...
-    whiskerPhase',unitRasters',params);
+[pCoh.coherMag,pCoh.coherPhase,~,~,~,pCoh.freqVals,~,...
+    pCoh.confC,pCoh.phistd,pCoh.Cerr]=coherencycpb(...
+    whiskerPhase',unitRasters',params); % pCoh.crossSpectrum pCoh.wPhaseSpectrum pCoh.spikeSpectrum
 
+% plotsig(pCoh.coherMag,pCoh.confC,t,pCoh.freqVals);
+
+% O = ebi([pCoh.wPhaseSpectrum;pCoh.spikeSpectrum],...
+%     [zeros(numel(pCoh.wPhaseSpectrum),1);ones(numel(pCoh.wPhaseSpectrum),1)],...
+%     'Test','CohZ');
 pCoh.peakCoherMag=pCoh.coherMag(find(pCoh.coherMag==max(pCoh.coherMag),1));
 pCoh.peakCoherPhase=pCoh.coherPhase(find(pCoh.coherMag==max(pCoh.coherMag),1));
 
