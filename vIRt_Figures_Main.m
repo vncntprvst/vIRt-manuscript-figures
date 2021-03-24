@@ -1,6 +1,7 @@
 %% vIRt paper figures %%
 %%%%%%%%%%%%%%%%%%%%%%%%
 clearvars
+clear global
 global CHRONUXGPU
 CHRONUXGPU = 1;
 %% define figure colormap
@@ -16,14 +17,14 @@ allCells=1:size(cellList,1);
 tunedCells=find(cellList.Tuning==1);
 PTCells=find(cellList.PT==1);
 
-doPlot={'PTPlots','TuningPlots'}; %'TuningPlots'
+doPlot={'Spectrum'}; %'TuningPlots' PTPlots
 
 %% Population phase tuning
 if any(contains(doPlot,'TuningPlots'))
     if exist(fullfile(baseDir,'Analysis','Cell_Tuning.mat'),'file')
         load(fullfile(baseDir,'Analysis','Cell_Tuning.mat'));
     else
-
+        
         cellTuning=struct('global',struct('phaseStats',[],'phaseTuning',[],...
             'meanFR',[],'edges',[],'phaseCoherence',[]),...
             'epochs',struct('phaseStats',[],'phaseTuning',[],...
@@ -45,13 +46,13 @@ if any(contains(doPlot,'TuningPlots'))
             wS(cellNum).angle=vIRt_WhiskingSpectrum(whiskers(bWhisk).angle_BP,wEpochMask);
             wS(cellNum).phase=vIRt_WhiskingSpectrum(whiskers(bWhisk).phase,wEpochMask);
             
-           
+            
             %% return global coherence (with stats, etc)
             % Tuning, Coherence, Stats thetas,phaseStats,phaseTuning,phaseCoherence
             [r.meanFR,r.edges,r.phaseStats,r.phaseTuning,r.phaseCoherence]=...
                 vIRt_PhaseTuning(whiskers(bWhisk).phase,ephys,wEpochMask,false);
             cellTuning(cellNum).global=r; clearvars r;
-             %% same but for each epoch 
+            %% same but for each epoch
             [r.meanFR,r.edges,r.phaseStats,r.phaseTuning,r.phaseCoherence]=...
                 vIRt_PhaseTuning(whiskers(bWhisk).phase,ephys,wEpochMask,true);
             cellTuning(cellNum).epochs=r; clearvars r;
@@ -219,7 +220,7 @@ if any(contains(doPlot,'TuningPlots'))
         [phEdgeColor,phFaceColor]=deal(gCMap(gNum,:));
         
         [cThetas,cEdges]=deal(cell(numel(gIdx{gNum}),1));
-        for gCellNum=1:numel(gIdx{gNum})  
+        for gCellNum=1:numel(gIdx{gNum})
             cellNum=gIdx{gNum}(gCellNum);
             if propEpochCoh(cellNum).fractionCoherEpoch==1 && phaseDiffTest(cellNum).globalPhaseDiff<=0.05
                 cThetas{gCellNum}=cellTuning(cellNum).global.meanFR{:};
@@ -229,7 +230,7 @@ if any(contains(doPlot,'TuningPlots'))
                 cThetas{gCellNum}=vertcat(cellTuning(cellNum).epochs.meanFR{epochIdx});
                 cEdges{gCellNum}=cellTuning(cellNum).epochs.edges{1};
                 
-%                 [cThetas,cEdges] = histcounts(vertcat(cellTuning(1).epochs.meanFR{epochIdx}),cellTuning(1).epochs.edges{1});
+                %                 [cThetas,cEdges] = histcounts(vertcat(cellTuning(1).epochs.meanFR{epochIdx}),cellTuning(1).epochs.edges{1});
                 
             end
             polarhistogram(cThetas{gCellNum},cEdges{gCellNum},'Displaystyle','bar',...
@@ -238,22 +239,86 @@ if any(contains(doPlot,'TuningPlots'))
                 'FaceAlpha',0.2,'EdgeAlpha',0);
             hold on
         end
-
+        
         paH = gca;
         paH.ThetaZeroLocation='left';
         paH.ThetaTickLabel={'max Protraction','','','Retraction','','',...
             'max Retraction','','','Protraction','',''};
-        paH.ThetaDir = 'counterclockwise';        
+        paH.ThetaDir = 'counterclockwise';
         
         % plot all group outline
         polarhistogram(vertcat(cThetas{:}),cEdges{1},'Displaystyle','stairs',...
-                'Normalization','probability','LineWidth',2,...
-                'EdgeColor','k','FaceColor','none',...
-                'FaceAlpha',0,'EdgeAlpha',0.8);
+            'Normalization','probability','LineWidth',2,...
+            'EdgeColor','k','FaceColor','none',...
+            'FaceAlpha',0,'EdgeAlpha',0.8);
         
-%         title(['Tuning to Whisking phase - group ' gLabels{gNum}] ,'interpreter','none');
-
+        %         title(['Tuning to Whisking phase - group ' gLabels{gNum}] ,'interpreter','none');
+        
     end
+end
+
+%% Population power spectrum. Classify fast/slow oscillation
+
+if any(contains(doPlot,'Spectrum'))
+    if exist(fullfile(baseDir,'Analysis','Cell_PSD.mat'),'file')
+        load(fullfile(baseDir,'Analysis','Cell_PSD.mat'));
+    else    
+        spS=struct('spectrumVals',[],'freqVals',[],'R',[],'Serr',[],...
+            'spectrumValsPSD',[],'SerrPSD',[],'RPSD',[],'StatSigIdx',[]);
+        for cellNum=1:size(cellList,1)
+            sessID=[char(cellList.Session(cellNum)) '_' num2str(cellList.RecordingID(cellNum))];
+            dataDir=fullfile(baseDir,'Analysis','Data',sessID);
+            load(fullfile(dataDir,[sessID '_behavior.mat']),'wEpochMask');
+            %     load(fullfile(dataDir,[sessID '_ephys.mat']),'ephys');
+            spikes=load(fullfile(dataDir,[sessID '_Unit' num2str(cellList.unitIndex(cellNum)) '.mat']));
+            %     ephys.selectedUnits=spikes.unitId;
+            %     load(fullfile(dataDir,[sessID '_recInfo.mat']),'recInfo');
+            %     ephys.recInfo=recInfo;
+            %         spikeData.spikeTimes=spikes.spikeTimes;
+            try
+                spS(cellNum)=vIRt_SpikingSpectrum(spikes.spikeTimes,wEpochMask);%wEpochMask
+            catch
+                continue
+            end
+        end
+        
+        for cellNum=1:size(cellList,1)
+            %     figure;
+            %     plot(spS(2).freqVals(spS(2).StatSigIdx),spS(2).spectrumValsPDF(spS(2).StatSigIdx),'k')
+            %     plot(ans(1).freqVals(ans(1).StatSigIdx),ans(1).spectrumValsPSD(ans(1).StatSigIdx),'k')
+            
+            sigFreq=spS(cellNum).freqVals(spS(cellNum).StatSigIdx);
+            sigPSD=spS(cellNum).spectrumValsPSD(spS(cellNum).StatSigIdx);
+            spS(cellNum).peakFreq=sigFreq(find(sigPSD==max(sigPSD),1));
+            spS(cellNum).peakPSD=sigPSD(find(sigPSD==max(sigPSD),1));
+            spS(cellNum).meanFreq=sigFreq(find(sigFreq>=mean(sigFreq),1));
+            spS(cellNum).meanPSD=sigPSD(find(sigFreq>=mean(sigFreq),1));
+        end
+        
+        emptyValIdx=cellfun(@isempty, {spS.meanPSD});
+        [spS(emptyValIdx).peakFreq,spS(emptyValIdx).peakPSD,...
+            spS(emptyValIdx).meanFreq,spS(emptyValIdx).meanPSD]=deal(NaN);
+    end
+    
+    meanValIdx=~cellfun(@isnan, {spS.meanPSD})';
+    manualTuningClass=cellList.Tuning;
+    PTClass=cellList.PT;
+    tClass=unique(manualTuningClass);
+    
+    figure; hold on
+    for tClassNum=4:-1:1
+        cellIdx=manualTuningClass==tClass(tClassNum) & meanValIdx;
+        plot([spS(cellIdx).meanFreq],...
+            [spS(cellIdx).meanPSD],'.')
+        
+        %      plot([spS(cellIdx).peakFreq],...
+        %          [spS(cellIdx).peakPSD],'.')
+    end
+    
+    cellIdx=1:5; %PTClass==1;
+    plot([spS(cellIdx).meanFreq],...
+        [spS(cellIdx).meanPSD],'bd')
+    
 end
 
 %% PT plots
