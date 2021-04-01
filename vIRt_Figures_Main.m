@@ -17,7 +17,7 @@ allCells=1:size(cellList,1);
 tunedCells=find(cellList.Tuning==1);
 PTCells=find(cellList.PT==1);
 
-doPlot={'Spectrum'}; %'TuningPlots' PTPlots
+doPlot={'PTPlots'}; %'TuningPlots' PTPlots Spectrum
 
 %% Population phase tuning
 if any(contains(doPlot,'TuningPlots'))
@@ -71,23 +71,23 @@ if any(contains(doPlot,'TuningPlots'))
     end
     
     %% plot bad ones
-    noDiffPDF=[13,18]; %find(phaseDiffTest>0.01);
-    numBins=32;
-    for cellNum=1:numel(noDiffPDF)
-        spikePhasePDF=cellTuning(noDiffPDF(cellNum)).global.phaseStats.spikePhasePDF;
-        phasePDF=cellTuning(noDiffPDF(cellNum)).global.phaseStats.phasePDF;
-        figure('position',[1202         323         583         487]); hold on ;
-        plot(linspace(-pi,pi, numBins+1),spikePhasePDF,'linewidth',1.2,'Color', [0 0 0]); %centers
-        plot(linspace(-pi,pi, numBins+1),phasePDF,'linewidth',1.2,'Color', [0 0 0 0.5]); %centers
-        set(gca,'ytick',0:0.05:1,...
-            'xlim',[-pi pi],'xtick',[-pi 0 pi],'xticklabel',{'-\pi','0','\pi'},...
-            'tickdir','out');
-        axis tight
-        legend('P(\phi_k|spike)','P(\phi_k)','location','southeast')
-        legend('boxoff')
-        title({'Probability density function'; 'of phase for spiking events'})
-    end
-    
+    %     noDiffPDF=[13,18]; %find(phaseDiffTest>0.01);
+    %     numBins=32;
+    %     for cellNum=1:numel(noDiffPDF)
+    %         spikePhasePDF=cellTuning(noDiffPDF(cellNum)).global.phaseStats.spikePhasePDF;
+    %         phasePDF=cellTuning(noDiffPDF(cellNum)).global.phaseStats.phasePDF;
+    %         figure('position',[1202         323         583         487]); hold on ;
+    %         plot(linspace(-pi,pi, numBins+1),spikePhasePDF,'linewidth',1.2,'Color', [0 0 0]); %centers
+    %         plot(linspace(-pi,pi, numBins+1),phasePDF,'linewidth',1.2,'Color', [0 0 0 0.5]); %centers
+    %         set(gca,'ytick',0:0.05:1,...
+    %             'xlim',[-pi pi],'xtick',[-pi 0 pi],'xticklabel',{'-\pi','0','\pi'},...
+    %             'tickdir','out');
+    %         axis tight
+    %         legend('P(\phi_k|spike)','P(\phi_k)','location','southeast')
+    %         legend('boxoff')
+    %         title({'Probability density function'; 'of phase for spiking events'})
+    %     end
+    %
     % for each cell get which epochs has significant coherence
     propEpochCoh=struct('coherEpochIdx',[],'fractionCoherEpoch',[],'manualClass',[]);
     
@@ -141,11 +141,17 @@ if any(contains(doPlot,'TuningPlots'))
     thetas=[cellTuning.peakCPhase];
     thetas(isnan(rhos))=NaN;
     
+    % define groups
+    P_group=thetas>=deg2rad(150) | thetas<deg2rad(-115);% & ~lowMedFreq;
+    R_group=thetas>=deg2rad(-30) & thetas<deg2rad(65);% & ~lowMedFreq;
+    midP_group=thetas>=deg2rad(-115) & thetas<deg2rad(-30);% & ~lowMedFreq;
+    midR_group=thetas>=deg2rad(65) & thetas<deg2rad(150);% & ~lowMedFreq;
+    
     % plot coherence in polar coordinates
     figure;
     %     polarplot(thetas,rhos,'o','LineWidth',2);
-    
-    polarplot(thetas(1:5),rhos(1:5),'o','MarkerFaceColor','b','MarkerEdgeColor','None','LineWidth',2.5);
+    polarplot(thetas(R_group),rhos(R_group),'o',...
+        'MarkerFaceColor','k','MarkerEdgeColor','None','LineWidth',2); %cmap(5,:)
     
     paH = gca;
     paH.ThetaZeroLocation='left';
@@ -154,20 +160,26 @@ if any(contains(doPlot,'TuningPlots'))
     paH.ThetaDir = 'counterclockwise';
     
     hold on
-    % other marker
-    P_group=thetas>=deg2rad(150) | thetas<deg2rad(-115);
-    R_group=thetas>=deg2rad(-30) & thetas<deg2rad(65);
-    midP_group=thetas>=deg2rad(-115) & thetas<deg2rad(-30);
-    midR_group=thetas>=deg2rad(65) & thetas<deg2rad(150);
+    
     
     polarplot(thetas(P_group),rhos(P_group),'o',...
-        'MarkerEdgeColor',cmap(2,:),'MarkerFaceColor','None','LineWidth',2);
-    polarplot(thetas(R_group),rhos(R_group),'o',...
-        'MarkerEdgeColor',cmap(5,:),'MarkerFaceColor','None','LineWidth',2);
-    polarplot(thetas(midP_group),rhos(midP_group),'o',...
-        'MarkerEdgeColor',cmap(4,:),'MarkerFaceColor','None','LineWidth',2);
+        'MarkerFaceColor',cmap(2,:),'MarkerEdgeColor','None','LineWidth',2);
     polarplot(thetas(midR_group),rhos(midR_group),'o',...
-        'MarkerEdgeColor',cmap(3,:),'MarkerFaceColor','None','LineWidth',2);
+        'MarkerFaceColor',cmap(3,:),'MarkerEdgeColor','None','LineWidth',2);
+    polarplot(thetas(midP_group),rhos(midP_group),'o',...
+        'MarkerFaceColor',cmap(4,:),'MarkerEdgeColor','None','LineWidth',2);
+    polarplot(thetas(1:5),rhos(1:5),'o',...
+        'MarkerFaceColor','b','MarkerEdgeColor','None','LineWidth',2.5);
+    
+    legend({'Retraction group','Protraction group','Mid-retraction group',...
+        'Mid-protraction group','Photo-tagged cells'},'FontSize',8);
+    legend('boxoff')
+    
+    %% other markers
+    %     % median Frequency PSD groups (see PSD analysis)
+    %     lowMedFreq=[spS(1:41).medFreq]<8;
+    %     polarplot(thetas(lowMedFreq),rhos(lowMedFreq),'o',...
+    %         'MarkerEdgeColor','None','MarkerFaceColor','r','LineWidth',2);
     
     %     polarplot(thetas(32),rhos(32),'or','LineWidth',2);
     %     polarplot(thetas(16),rhos(16),'vr','LineWidth',2);
@@ -262,7 +274,7 @@ end
 if any(contains(doPlot,'Spectrum'))
     if exist(fullfile(baseDir,'Analysis','Cell_PSD.mat'),'file')
         load(fullfile(baseDir,'Analysis','Cell_PSD.mat'));
-    else    
+    else
         spS=struct('spectrumVals',[],'freqVals',[],'R',[],'Serr',[],...
             'spectrumValsPSD',[],'SerrPSD',[],'RPSD',[],'StatSigIdx',[]);
         for cellNum=1:size(cellList,1)
@@ -276,6 +288,7 @@ if any(contains(doPlot,'Spectrum'))
             %     ephys.recInfo=recInfo;
             %         spikeData.spikeTimes=spikes.spikeTimes;
             try
+                %                 spS(cellNum)=vIRt_FRSpectrum(spikes.spikeTimes,wEpochMask);%wEpochMask
                 spS(cellNum)=vIRt_SpikingSpectrum(spikes.spikeTimes,wEpochMask);%wEpochMask
             catch
                 continue
@@ -293,31 +306,90 @@ if any(contains(doPlot,'Spectrum'))
             spS(cellNum).peakPSD=sigPSD(find(sigPSD==max(sigPSD),1));
             spS(cellNum).meanFreq=sigFreq(find(sigFreq>=mean(sigFreq),1));
             spS(cellNum).meanPSD=sigPSD(find(sigFreq>=mean(sigFreq),1));
+            
+            breathFreqIdx=spS(cellNum).freqVals>=3 & spS(cellNum).freqVals<=8;
+            whiskFreqIdx=spS(cellNum).freqVals>=12 & spS(cellNum).freqVals<=17;
+            spS(cellNum).breathPSDInt=trapz(spS(cellNum).spectrumValsPSD(breathFreqIdx));
+            spS(cellNum).whiskPSDInt=trapz(spS(cellNum).spectrumValsPSD(whiskFreqIdx));
+            spS(cellNum).BWratio=spS(cellNum).whiskPSDInt/spS(cellNum).breathPSDInt;
+            try
+                freqIdx=spS(cellNum).freqVals>=3 & spS(cellNum).freqVals<=20;
+                spS(cellNum).medFreq=medfreq(spS(cellNum).spectrumVals(freqIdx),spS(cellNum).freqVals(freqIdx));
+            catch
+                continue
+            end
         end
+        
+        emptyValIdx=cellfun(@isempty, {spS.medFreq});
+        [spS(emptyValIdx).medFreq]=deal(NaN);
         
         emptyValIdx=cellfun(@isempty, {spS.meanPSD});
         [spS(emptyValIdx).peakFreq,spS(emptyValIdx).peakPSD,...
             spS(emptyValIdx).meanFreq,spS(emptyValIdx).meanPSD]=deal(NaN);
+        
     end
     
     meanValIdx=~cellfun(@isnan, {spS.meanPSD})';
+    medFreqIdx=~cellfun(@isempty, {spS.medFreq})';
     manualTuningClass=cellList.Tuning;
     PTClass=cellList.PT;
     tClass=unique(manualTuningClass);
     
     figure; hold on
     for tClassNum=4:-1:1
-        cellIdx=manualTuningClass==tClass(tClassNum) & meanValIdx;
-        plot([spS(cellIdx).meanFreq],...
-            [spS(cellIdx).meanPSD],'.')
+        cellIdx=manualTuningClass==tClass(tClassNum) & medFreqIdx; %meanValIdx;
         
+        scatter([spS(cellIdx).medFreq],...
+            [spS(cellIdx).R],'.')
+        
+        %         plot([spS(cellIdx).breathPSDInt],...
+        %             [spS(cellIdx).whiskPSDInt],'.')
+        
+        %         plot([spS(cellIdx).meanFreq],...
+        %             [spS(cellIdx).meanPSD],'.')
+        %
         %      plot([spS(cellIdx).peakFreq],...
         %          [spS(cellIdx).peakPSD],'.')
     end
     
+    cellIdx=PTClass==1;
+    plot([spS(cellIdx).medFreq],...
+        [spS(cellIdx).R],'kd')
+    
     cellIdx=1:5; %PTClass==1;
-    plot([spS(cellIdx).meanFreq],...
-        [spS(cellIdx).meanPSD],'bd')
+    plot([spS(cellIdx).medFreq],...
+        [spS(cellIdx).R],'bd')
+    
+    cellIdx=104;
+    plot([spS(cellIdx).medFreq],...
+        [spS(cellIdx).R],'rd')
+    
+    %
+    %     cellIdx=PTClass==1;
+    %     plot([spS(cellIdx).meanFreq],...
+    %         [spS(cellIdx).meanPSD],'kd')
+    %
+    %     cellIdx=1:5; %PTClass==1;
+    %     plot([spS(cellIdx).meanFreq],...
+    %         [spS(cellIdx).meanPSD],'bd')
+    %
+    %     cellIdx=PTClass==1;
+    %     plot([spS(cellIdx).breathPSDInt],...
+    %         [spS(cellIdx).whiskPSDInt],'kd')
+    %
+    %     cellIdx=1:5; %PTClass==1;
+    %     plot([spS(cellIdx).breathPSDInt],...
+    %         [spS(cellIdx).whiskPSDInt],'bd')
+    
+    %% low oscillation - PT
+    cellIdx=cellfun(@(x) x<9 ,{spS.medFreq},'UniformOutput',true)';
+    srCells=cellList(cellIdx,:);
+    srSpS=spS(cellIdx);
+    cellIdx=srCells.PT==1;
+    plot([srSpS(cellIdx).medFreq],...
+        [srSpS(cellIdx).R],'go')
+    
+    %     #104 isn't part of it because meanFreq is NaN - check that
     
 end
 
@@ -330,23 +402,11 @@ end
 % tuning
 
 if any(contains(doPlot,'PTPlots'))
-    taggedCells=ones(numel(allCells),1);
-    for cellNum=1:numel(allCells) %PTCells
-        uIdx=allCells(cellNum);
-        sessID=[char(cellList.Session(uIdx)) '_' num2str(cellList.RecordingID(uIdx))];
-        dataDir=fullfile(baseDir,'Analysis','Data',sessID);
-        load(fullfile(dataDir,[sessID '_ephys.mat']),'ephys');
-        load(fullfile(dataDir,[sessID '_pulses.mat']),'pulses');
-        load(fullfile(dataDir,[sessID '_recInfo.mat']),'recInfo');
-        ephys.recInfo=recInfo;
-        ephys.selectedUnits=cellList.unitIndex(uIdx);
-        
-        taggedCells(cellNum) = FindPhototagged(ephys,pulses);
-    end
-    for cellNum=1:5%numel(allCells) %PTCells
-        if taggedCells(cellNum)<0.01 && cellList.unitFrequency(cellNum)>=0.04
-            %% Check Phototagging summary
-            
+    if exist(fullfile(baseDir,'Analysis','Cell_PT.mat'),'file')
+        load(fullfile(baseDir,'Analysis','Cell_PT.mat'));
+    else
+        taggedCells=ones(numel(allCells),1);
+        for cellNum=1:numel(allCells) %PTCells
             uIdx=allCells(cellNum);
             sessID=[char(cellList.Session(uIdx)) '_' num2str(cellList.RecordingID(uIdx))];
             dataDir=fullfile(baseDir,'Analysis','Data',sessID);
@@ -356,44 +416,64 @@ if any(contains(doPlot,'PTPlots'))
             ephys.recInfo=recInfo;
             ephys.selectedUnits=cellList.unitIndex(uIdx);
             
-            %load spikes data
-            ephys.spikes=load(fullfile(dataDir,[sessID '_Unit' num2str(cellList.unitIndex(uIdx)) '.mat']));
-            ephys.spikes.selectedUnits=ephys.spikes.unitId;
-            ephys.spikes.times=ephys.spikes.spikeTimes;
-            ephys.spikes.unitID=ones(numel(ephys.spikes.times),1)*ephys.spikes.selectedUnits;
-            ephys.spikes.preferredElectrode=ephys.spikes.preferredEl;
-            ephys.spikes.waveforms=ephys.spikes.waveForms;
-            ephys.spikes=rmfield(ephys.spikes,{'spikeTimes','unitId','preferredEl','waveForms'});
-            if numel(ephys.spikes.rasters)==1
-                ephys.spikes.rasters=ephys.rasters(ephys.spikes.selectedUnits,:);
-            end
-            
-            if ~isfield(pulses,'duration')
-                sessInfoFile=fullfile(ephys.recInfo.dirName,[ephys.recInfo.baseName '_info.json']);
-                if exist(sessInfoFile,'file')
-                    sessInfo = fileread(sessInfoFile);
-                    sessInfo = jsondecode(sessInfo);
-                    pulses.duration=sessInfo.photoStim.pulseDur;
-                    ephys.spikes.bitResolution=sessInfo.bitResolution;
-                else
-                    pulses.duration=0.010;
-                end
-            end
-            if ~isfield(ephys,'traces')
-                tracefileIdx=cellfun(@(x) contains(x,'traces'),{ephys.recInfo.sessFiles.name});
-                if ~any(tracefileIdx)
-                    tracefileIdx=cellfun(@(x) contains(x,'rec.bin'),{ephys.recInfo.sessFiles.name});
-                end
-                traceFile = fopen(fullfile(ephys.recInfo.sessFiles(tracefileIdx).folder,...
-                    ephys.recInfo.sessFiles(tracefileIdx).name), 'r');
-                ephys.traces = fread(traceFile,[ephys.recInfo.numRecChan,Inf],'single');
-                fclose(traceFile);
-            end
-            
-            PhotoTagPlots(ephys,pulses); %Implement SALT test
-            ephys=rmfield(ephys,'traces');
+            taggedCells(cellNum) = FindPhototagged(ephys,pulses);
         end
     end
+    PTCells=find(taggedCells(:,3));
+    %     cellIdx=find(cellList.PT==1 & cellfun(@(x) x<10 ,{spS.medFreq},'UniformOutput',true)');
+    
+    for cellNum=1:numel(PTCells) %1:5 %104 %3 %1:4 %numel(allCells) %PTCells
+        %         if taggedCells(cellNum)<0.01 && cellList.unitFrequency(cellNum)>=0.04
+        %% Check Phototagging summary
+        
+        uIdx=PTCells(cellNum); %allCells cellIdx
+        sessID=[char(cellList.Session(uIdx)) '_' num2str(cellList.RecordingID(uIdx))];
+        dataDir=fullfile(baseDir,'Analysis','Data',sessID);
+        load(fullfile(dataDir,[sessID '_ephys.mat']),'ephys');
+        load(fullfile(dataDir,[sessID '_pulses.mat']),'pulses');
+        load(fullfile(dataDir,[sessID '_recInfo.mat']),'recInfo');
+        ephys.recInfo=recInfo;
+        ephys.selectedUnits=cellList.unitIndex(uIdx);
+        
+        %load spikes data
+        ephys.spikes=load(fullfile(dataDir,[sessID '_Unit' num2str(cellList.unitIndex(uIdx)) '.mat']));
+        ephys.spikes.selectedUnits=ephys.spikes.unitId;
+        ephys.spikes.times=ephys.spikes.spikeTimes;
+        ephys.spikes.unitID=ones(numel(ephys.spikes.times),1)*ephys.spikes.selectedUnits;
+        ephys.spikes.preferredElectrode=ephys.spikes.preferredEl;
+        ephys.spikes.waveforms=ephys.spikes.waveForms;
+        ephys.spikes=rmfield(ephys.spikes,{'spikeTimes','unitId','preferredEl','waveForms'});
+        if numel(ephys.spikes.rasters)==1
+            ephys.spikes.rasters=ephys.rasters(ephys.spikes.selectedUnits,:);
+        end
+        
+        if ~isfield(pulses,'duration')
+            sessInfoFile=fullfile(ephys.recInfo.dirName,[ephys.recInfo.baseName '_info.json']);
+            if exist(sessInfoFile,'file')
+                sessInfo = fileread(sessInfoFile);
+                sessInfo = jsondecode(sessInfo);
+                pulses.duration=sessInfo.photoStim.pulseDur;
+                ephys.spikes.bitResolution=sessInfo.bitResolution;
+            else
+                pulses.duration=0.010;
+            end
+        end
+        if ~isfield(ephys,'traces')
+            tracefileIdx=cellfun(@(x) contains(x,'traces'),{ephys.recInfo.sessFiles.name});
+            if ~any(tracefileIdx)
+                tracefileIdx=cellfun(@(x) contains(x,'rec.bin'),{ephys.recInfo.sessFiles.name});
+            end
+            traceFile = fopen(fullfile(ephys.recInfo.sessFiles(tracefileIdx).folder,...
+                ephys.recInfo.sessFiles(tracefileIdx).name), 'r');
+            ephys.traces = fread(traceFile,[ephys.recInfo.numRecChan,Inf],'single');
+            fclose(traceFile);
+        end
+        
+        vIRt_TracesSpikesPulses(ephys,pulses,uIdx,'average',true);
+        %             PhotoTagPlots(ephys,pulses);
+        ephys=rmfield(ephys,'traces');
+    end
+    %     end
 end
 
 if any(contains(doPlot,'OverviewPlot'))

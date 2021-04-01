@@ -1,4 +1,8 @@
-function spS=vIRt_SpikingSpectrum(spikeTimes,dataMask) %
+function spS=vIRt_FRSpectrum(spikeTimes,dataMask) %
+
+%% Make rasters and compute spike density function
+rasters=EphysFun.MakeRasters(spikeTimes,ones(numel(spikeTimes),1),1);
+spikeRate=EphysFun.MakeSDF(rasters,3);
 
 if nargin>1
     %% Data masking
@@ -12,34 +16,20 @@ if nargin>1
     if isempty(timeLimitIdx) %then keep all
         timeLimitIdx=numel(wEpochs.behav.PixelIdxList);
     end
-   
-    % apply mask 
-%     wEpochs.behav.PixelIdxList=vertcat(wEpochs.behav.PixelIdxList{1:timeLimitIdx});
-    wEpochs.behav.PixelIdxList=wEpochs.behav.PixelIdxList(1:timeLimitIdx);
-%     if ~isstruct(spikeTimes)
-%         spikeTimes=struct('times',spikeTimes);
-%     end
-%     for epochNum=numel(wEpochs.behav.PixelIdxList):-1:1
-%         epochIdx=spikeTimes(1).times>=wEpochs.behav.PixelIdxList{epochNum}(1)/1000 & ...
-%             spikeTimes(1).times<=wEpochs.behav.PixelIdxList{epochNum}(end)/1000;
-%         spikeTimes(epochNum).times=spikeTimes(1).times(epochIdx);
-%     end
-    for epochNum=1:numel(wEpochs.behav.PixelIdxList)-1
-        interEpochIdx=spikeTimes>wEpochs.behav.PixelIdxList{epochNum}(end)/1000 & ...
-            spikeTimes<wEpochs.behav.PixelIdxList{epochNum+1}(1)/1000;
-        spikeTimes(interEpochIdx)=NaN;
-    end
-    spikeTimes(spikeTimes>wEpochs.behav.PixelIdxList{end}(end)/1000)=NaN;
-    spikeTimes=spikeTimes(~isnan(spikeTimes));
+    
+    % apply mask
+    wEpochs.behav.PixelIdxList=vertcat(wEpochs.behav.PixelIdxList{1:timeLimitIdx});
+    % apply mask
+    spikeRate=spikeRate(wEpochs.behav.PixelIdxList);
 else % keep first 30s
-%     spikeTimes=spikeTimes(spikeTimes<=30);
+    %     spikeTimes=spikeTimes(spikeTimes<=30);
 end
 
 %% Power spectrum
 % set parameters
 params.Fs=1000; % sampling frequency
-params.fpass=[3 30]; % % band of frequencies to be kept
-params.NW=min([100 floor(max(spikeTimes))*2.5]); %3
+params.fpass=[3 25]; % % band of frequencies to be kept
+params.NW=min([20 length(spikeRate)*2.5]); %3
 params.tapers=[params.NW params.NW*2-1]; % taper parameters
 params.pad=2; % pad factor for fft
 params.err=[2 0.01];
@@ -47,16 +37,17 @@ params.trialave=0;
 movingwin=[0.5 0.05];
 
 % tic
-[spS.spectrumVals,spS.freqVals,spS.R,spS.Serr]=mtspectrumpt(spikeTimes,params);
+[spS.spectrumVals,spS.freqVals,spS.Serr]=mtspectrumc(spikeRate',params);
 % toc
-% [spS.spectrumVals,spS.times,spS.freqVals,spS.R,spS.Serr]=mtspecgrampt_optimized(spikeTimes,movingwin,params);
+
+% [S,t,f,Serr]=mtspecgramc(spikeRate',movingwin,params)
 
 % convert to dB (power spectral density)
 spS.spectrumValsPSD= 10*log10(spS.spectrumVals);
 spS.SerrPSD(1,:)=10*log10(spS.Serr(1,:));
 spS.SerrPSD(2,:)=10*log10(spS.Serr(2,:));
 spS.RPSD=10*log10(spS.R);
- 
+
 spS.StatSigIdx=spS.SerrPSD(1,:)<=spS.RPSD & spS.SerrPSD(2,:)>=spS.RPSD;
 
 %% figures
@@ -71,5 +62,7 @@ if false
     hold on
     plot(spS.freqVals(spS.StatSigIdx),spS.spectrumValsPSD(spS.StatSigIdx),'k')
     
+%     figure;imagesc(t,f,10*log10(S)'); axis xy; colorbar
+
 end
 
