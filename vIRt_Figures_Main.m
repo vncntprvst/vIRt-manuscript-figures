@@ -17,7 +17,7 @@ allCells=1:size(cellList,1);
 tunedCells=find(cellList.Tuning==1);
 PTCells=find(cellList.PT==1);
 
-doPlot={'PTPlots'}; %'TuningPlots' PTPlots Spectrum
+doPlot={'PTPlots'}; %'PTPlots TuningPlots' CV2 Spectrum
 
 %% Population phase tuning
 if any(contains(doPlot,'TuningPlots'))
@@ -124,7 +124,7 @@ if any(contains(doPlot,'TuningPlots'))
             % Tuning epoch noted in cellList:
             % str2double(char(cellList.tuningEpochs(cellNum)))
             % Too abitrary. Average over all epochs with Coherence Magnitude > 0.3.
-            % even better: take only epochs with significant coherence
+            % Even better: take only epochs with significant coherence
             
             epochIdx=propEpochCoh(cellNum).coherEpochIdx & phaseDiffTest(cellNum).epochPhaseDiffIdx;
             
@@ -270,7 +270,6 @@ if any(contains(doPlot,'TuningPlots'))
 end
 
 %% Population power spectrum. Classify fast/slow oscillation
-
 if any(contains(doPlot,'Spectrum'))
     if exist(fullfile(baseDir,'Analysis','Cell_PSD.mat'),'file')
         load(fullfile(baseDir,'Analysis','Cell_PSD.mat'));
@@ -394,13 +393,6 @@ if any(contains(doPlot,'Spectrum'))
 end
 
 %% PT plots
-
-% waveforms
-% traces
-% rasters
-% latency histogram + SALT
-% tuning
-
 if any(contains(doPlot,'PTPlots'))
     if exist(fullfile(baseDir,'Analysis','Cell_PT.mat'),'file')
         load(fullfile(baseDir,'Analysis','Cell_PT.mat'));
@@ -421,17 +413,21 @@ if any(contains(doPlot,'PTPlots'))
     end
     PTCells=find(taggedCells(:,3));
     %     cellIdx=find(cellList.PT==1 & cellfun(@(x) x<10 ,{spS.medFreq},'UniformOutput',true)');
-    
-    for cellNum=1:numel(PTCells) %1:5 %104 %3 %1:4 %numel(allCells) %PTCells
+    PTmeasures=struct('latency',[],'jitter',[],...
+        'ISI',struct('onPulse',[],'offPulse',[]),'waveform',[]);
+    for cellNum=28:numel(PTCells) %1:5 %104 %3 %1:4 %numel(allCells) %PTCells tunedCells
         %         if taggedCells(cellNum)<0.01 && cellList.unitFrequency(cellNum)>=0.04
         %% Check Phototagging summary
         
-        uIdx=PTCells(cellNum); %allCells cellIdx
+        uIdx=PTCells(cellNum); %allCells PTCells cellIdx tunedCells
         sessID=[char(cellList.Session(uIdx)) '_' num2str(cellList.RecordingID(uIdx))];
         dataDir=fullfile(baseDir,'Analysis','Data',sessID);
         load(fullfile(dataDir,[sessID '_ephys.mat']),'ephys');
-        load(fullfile(dataDir,[sessID '_pulses.mat']),'pulses');
+        load(fullfile(dataDir,[sessID '_pulses.mat']),'pulses');vIRt_TTL; 
         load(fullfile(dataDir,[sessID '_recInfo.mat']),'recInfo');
+        if ~exist('Z:/','dir')
+            recInfo.dirName=strrep(recInfo.dirName,'Z:\Vincent\Ephys\','D:\Vincent\');
+        end
         ephys.recInfo=recInfo;
         ephys.selectedUnits=cellList.unitIndex(uIdx);
         
@@ -469,20 +465,147 @@ if any(contains(doPlot,'PTPlots'))
             fclose(traceFile);
         end
         
-        vIRt_TracesSpikesPulses(ephys,pulses,uIdx,'average',true);
-        %             PhotoTagPlots(ephys,pulses);
+        % benchmark with S2
+        %         ephys=S2file(ephys,'load');
+        %
+        %         fldNames=fieldnames(ephys.spikes);
+        %         s2SortIdx=cellfun(@(x) contains(x,[ephys.recInfo.baseName '_Ch']),fldNames);
+        %         if any(s2SortIdx)
+        %             s2Sort=fldNames{s2SortIdx};
+        %             spikefileIdx=cellfun(@(x) contains(x,'_ephys'),{ephys.recInfo.sessFiles.name});
+        %             originalSF=load(fullfile(ephys.recInfo.sessFiles(spikefileIdx).folder,...
+        %                 ephys.recInfo.sessFiles(spikefileIdx).name),'ephys');
+        %             ephys=S2sort(ephys,originalSF.ephys.spikes.times,pulses,s2Sort);
+        %         end
+        
+        %         vIRt_TracesSpikesPulses(ephys,pulses,uIdx,'average',false); %overlay excerpt average
+        
+        latency=OptoJitter(ephys.spikes,pulses.TTLTimes,ephys.selectedUnits,pulses.duration,NaN);
+        PTmeasures(uIdx).latency=mean(latency);
+        PTmeasures(uIdx).jitter=std(latency);
+        
+%         if false
+            vIRt_PhotoTagPlots(ephys,pulses,uIdx,true);
+%             vIRt_CollisionTest(ephys,pulses,uIdx);
+%         end
+        
         ephys=rmfield(ephys,'traces');
     end
-    %     end
+    
+    % Latency / Jitter plot
+    figure('Position',[214   108   747   754],'Color','w');
+    hold on
+    plot([PTmeasures.latency],[PTmeasures.jitter],'o','MarkerFaceColor',...
+        [0.5 0.5 0.5], 'MarkerEdgeColor','k','MarkerSize',8); %[0.3 0.75 0.93]
+    plot([PTmeasures(1:5).latency],[PTmeasures(1:5).jitter],'o','MarkerFaceColor',...
+        [0.3 0.75 0.93], 'MarkerEdgeColor','k','MarkerSize',8);
+    
+    box off; grid('on');
+    set(gca,'xlim',[1 ceil(max(get(gca,'xlim'))/10)*10],...
+        'ylim',[0.1 ceil(max(get(gca,'ylim'))/10)*10]);
+    set(gca,'xscale','log','yscale','log','GridAlpha',0.25,'MinorGridAlpha',1)
+    set(gca,'XTickLabel',get(gca,'XTick'),'YTickLabel',get(gca,'YTick'));
+    set(gca,'Color','white','FontSize',10,'FontName','calibri','TickDir','out');
+    %     legend('Latency','ISI','location','southeast','box','off')
+    xlabel('Latency (ms)')
+    ylabel('Latency jitter, SD (ms)');
+    hold off
+    
+    % Latency histogram plot
+    figure('Position',[214   108   747   754],'Color','w');
+    hold on
+    Lathist=histogram([PTmeasures(1:5).latency],-1:10);
+    Lathist.FaceColor = [1.0000    0.6784    0.0980]; %[1.0000    0.8941    0.7686];
+    Lathist.EdgeColor = 'k';    
+        
+    xlabel('Latency distribution (ms)')
+    ylabel('Count')
+    axis('tight'); box off; 
+%     set(gca,'xlim',[0 10^3],'Color','white','FontSize',10,'FontName','calibri','TickDir','out');
+%     set(gca,'XTick',[1,10,100,1000],'XTickLabel',[1,10,100,1000]);
+    hold off
 end
 
+%% Overview plot
 if any(contains(doPlot,'OverviewPlot'))
-    %% Overview plot
     NBC_Plots_Overview(whiskers(bWhisk),whiskingEpochs,breathing,ephys,pulses.TTLTimes,false,false);
 end
 
+%% CV2 transition rythm plot
+if any(contains(doPlot,'CV2'))
+    load(fullfile(baseDir,'Analysis','Cell_Tuning.mat'));
+    if exist(fullfile(baseDir,'Analysis','Cell_CV2.mat'),'file')
+        load(fullfile(baseDir,'Analysis','Cell_CV2.mat'));
+    else
+        
+        %% first compute propEpochCoh and phaseDiffTest to get epoch index
+        
+        
+        % for each cell, get which has significant different PDF
+        phaseDiffTest=struct('globalPhaseDiff',[],'epochPhaseDiffIdx',[]);
+        for cellNum=1:numel(tunedCells)
+            phaseDiffTest(cellNum).globalPhaseDiff=cellTuning(cellNum).global.phaseStats.spikePhaseStats(1);
+            phaseDiffTest(cellNum).epochPhaseDiffIdx=...
+                cellfun(@(x) x(1)<=0.05, {cellTuning(cellNum).epochs.phaseStats.spikePhaseStats});
+        end
+        % for each cell get which epochs has significant coherence
+        propEpochCoh=struct('coherEpochIdx',[],'fractionCoherEpoch',[],'manualClass',[]);
+        
+        for cellNum=1:numel(tunedCells)
+            epochCoh=cellfun(@(x,y) any(x>=y), {cellTuning(cellNum).epochs.phaseCoherence.coherMag},...
+                {cellTuning(cellNum).epochs.phaseCoherence.confC});
+            propEpochCoh(cellNum).fractionCoherEpoch=sum(epochCoh)/numel(epochCoh);
+            if cellList.tuningEpochs(cellNum) == 'all' % for comparison with manual classification
+                propEpochCoh(cellNum).manualClass=1;
+            else
+                propEpochCoh(cellNum).manualClass=0;
+            end
+            propEpochCoh(cellNum).coherEpochIdx=epochCoh;
+        end
+        
+        CV2=struct('mVals',[],'wb_mVals',[],'CV2_all_ISI',[],'CV2_withinBurst_ISI',[]);
+        
+        for cellNum=1:numel(tunedCells)
+            uIdx=tunedCells(cellNum);
+            sessID=[char(cellList.Session(uIdx)) '_' num2str(cellList.RecordingID(uIdx))];
+            dataDir=fullfile(baseDir,'Analysis','Data',sessID);
+            load(fullfile(dataDir,[sessID '_behavior.mat']),'whiskers','wEpochMask','bWhisk');
+            load(fullfile(dataDir,[sessID '_ephys.mat']),'ephys');
+            spikes=load(fullfile(dataDir,[sessID '_Unit' num2str(cellList.unitIndex(uIdx)) '.mat']));
+            ephys.selectedUnits=spikes.unitId;
+            load(fullfile(dataDir,[sessID '_recInfo.mat']),'recInfo');
+            ephys.recInfo=recInfo;
+            
+            wEpochMask.epochIdx=(propEpochCoh(cellNum).coherEpochIdx & phaseDiffTest(cellNum).epochPhaseDiffIdx)';
+            
+            CV2(cellNum)=vIRt_CV2(whiskers(bWhisk).angle_BP,ephys,wEpochMask);
+        end
+    end
+    %% plot CV2s
+    
+    rhos=[CV2.CV2_withinBurst_ISI]; % #13 and 18 are out based on phase diff and coherence
+    thetas=[cellTuning.peakCPhase];
+    thetas(isnan(rhos))=NaN;
+    
+    % plot CV2 in polar coordinates
+    figure;
+    polarplot(thetas,rhos,'o',...
+        'MarkerFaceColor','k','MarkerEdgeColor','None','LineWidth',2); %cmap(5,:)
+    
+    paH = gca;
+    paH.ThetaZeroLocation='left';
+    paH.ThetaTickLabel={'max Protraction','','','Retraction','','',...
+        'max Retraction','','','Protraction','',''};
+    paH.ThetaDir = 'counterclockwise';
+    paH.RLim = [0 2];
+    %     hold on
+    %     legend('','FontSize',8);
+    %     legend('boxoff')
+    
+    
+end
 
-%% transition rythm plot
+
 
 %% Supplementary
 % Slow rhythm tunings: setpoint / breathing

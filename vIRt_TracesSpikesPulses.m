@@ -151,11 +151,18 @@ for cellNum=1:size(ephysData.selectedUnits,1)
             scaleF = max(max(max(abs(traceExcerpt))));
             traceExcerpt=traceExcerpt./scaleF;
             
-            %             for TTLNum=1:length(TTLtimes)
+            %% all channels and all pulses overlaped
             for traceNum=1:size(traceExcerpt,1)
                 plot(squeeze(traceExcerpt(traceNum,:,:))+(traceNum-1),'color',[0 0 0 0.1]);
             end
-            %             end
+            
+            %% some select pulses only
+%             for TTLNum=1:5 %length(TTLtimes)
+%                 for traceNum=2:3:5 %:size(traceExcerpt,1)
+%                     plot(squeeze(traceExcerpt(traceNum,:,TTLNum))+(traceNum-1),'color',[0 0 0]);
+%                 end
+%             end
+            
             
             %             traceExcerpt=mean(traceExcerpt,3);%(:,:,5)
             %
@@ -168,7 +175,7 @@ for cellNum=1:size(ephysData.selectedUnits,1)
             %                     max(abs(zscore(traceExcerpt(traceNum,:)))),'color','k');
             %             end
             
-%             set(gca,'xticklabels',cellfun(@(x) round(str2num(x)/30,1)-5, get(gca,'xticklabels')))
+            %             set(gca,'xticklabels',cellfun(@(x) round(str2num(x)/30,1)-5, get(gca,'xticklabels')))
             xline(SRR/200); xline(SRR/200+(pulseDur*SRR))
             xTicks=0:SRR/400:SRR/200+1.2*(pulseDur*SRR);
             set(gca,'xtick',xTicks,'xticklabel',xTicks/30-5)
@@ -180,20 +187,89 @@ for cellNum=1:size(ephysData.selectedUnits,1)
                 'interpreter','none')
             
             if savePlots
-%                 savefig(gcf,[cd filesep 'Cell_' ... %'Z:\Vincent\Figures\vIRt\PT'
-%                     num2str(uIdx) '_Overlaped_Triggered_Traces'],'compact');
+                %                 savefig(gcf,[cd filesep 'Cell_' ... %'Z:\Vincent\Figures\vIRt\PT'
+                %                     num2str(uIdx) '_Overlaped_Triggered_Traces'],'compact');
                 print(gcf,[cd filesep 'Cell_' num2str(uIdx) '_Overlaped_Triggered_Traces'],'-dpng')
                 close(gcf)
             end
+            
+        case 'overlay'
+            cmap=parula;
+            
+            SRR=double(ephysData.spikes.samplingRate);
+            traceExcerpt.location=TTLtimes(1)*SRR;
+            winIdxStart=(traceExcerpt.location-traceExcerpt.excerptSize); %*traceData.traceInfo.numChan+1;
+            winIdxEnd=traceExcerpt.location+10*traceExcerpt.excerptSize;
+            
+            excerptWindow=int32(winIdxStart:winIdxEnd-1);%-SRR;
+                
+            excerptTTLtimes=double(TTLtimes(TTLtimes>(traceExcerpt.location-...
+                traceExcerpt.excerptSize)/SRR &...
+                TTLtimes<(traceExcerpt.location+10*traceExcerpt.excerptSize)/SRR)-...
+                (traceExcerpt.location-traceExcerpt.excerptSize)/...
+                SRR)*SRR;
+            
+            excerptSpikeTimes={double(ephysData.spikes.times(ephysData.spikes.times>(traceExcerpt.location-...
+                traceExcerpt.excerptSize)/SRR &...
+                ephysData.spikes.times<(traceExcerpt.location+10*traceExcerpt.excerptSize)/SRR)-...
+                (traceExcerpt.location-traceExcerpt.excerptSize)/...
+                SRR)*SRR};
+            
+            
+            prefElec=double(ephysData.spikes.preferredElectrode(ismember(...
+                ephysData.spikes.unitID,ephysData.selectedUnits(cellNum))));
+            try
+                keepTrace=mode(prefElec(ephysData.spikes.times>(traceExcerpt.location-...
+                    traceExcerpt.excerptSize)/SRR));
+            catch
+                keepTrace=mode(prefElec);
+            end
+            traceExcerpt.data=ephysData.traces(keepTrace,excerptWindow);
+            
+            figure('Position',[214   108   747   754],'name',...
+                [fileName ' Unit' num2str(ephysData.selectedUnits(cellNum))] ); %Ch' num2str(spikeData.selectedUnits(cellNum))
+            hold on
+            plot(traceExcerpt.data,'color','k');
+            
+            if ~isempty(excerptTTLtimes)
+                for TTLNum=1:length(excerptTTLtimes)
+                    patch([excerptTTLtimes(TTLNum), excerptTTLtimes(TTLNum),...
+                        excerptTTLtimes(TTLNum)+pulseDur*SRR, excerptTTLtimes(TTLNum)+pulseDur*SRR], ...
+                        [get(gca,'ylim') fliplr(get(gca,'ylim'))], ...
+                        [0 0 0 0],[0.3 0.75 0.93],'EdgeColor','none','FaceAlpha',0.7);
+                end
+                
+                %     set(gca,'xtick',traceExcerpt.xTicks,'xticklabel',traceExcerpt.xTicklabels,...
+                %         'ytick',[],'yticklabel',[],'TickDir','out');
+%                 set(gca,'xtick',linspace(0,2*traceExcerpt.excerptSize,9),...
+%                     'xticklabel',round(linspace(0,2*traceExcerpt.excerptSize,9)/double(SRR)),...
+%                     'ytick',[],'yticklabel',[],'TickDir','out');
+                
+            end
+            box off;
+            xlabel('Time (ms)');
+            set(gca,'Color','white','FontSize',12,'FontName','Helvetica');
+            
+            %% no need to plot waveforms -- just visual inspection
+            for cellNum=1:length(excerptSpikeTimes)
+                if ~isempty(excerptSpikeTimes{cellNum}) && all(~isnan(excerptSpikeTimes{cellNum}))
+                    %plot spike id labels
+                    spkLabelYLoc=ones(1,size(excerptSpikeTimes{cellNum},2))*(min(get(gca,'ylim'))/4*3);
+                    plot(double(excerptSpikeTimes{cellNum}), ...%-double(traceExcerpt.location-traceExcerpt.excerptSize),...
+                        spkLabelYLoc,'Color','k',...%[cmap(cellNum,:),0.4],...
+                        'linestyle','none','Marker','x'); % 0 1 2 3 s ^ o x
+                end
+            end
+            
+            
+            
+            
     end
-    
-    
-    
-    
-    
 end
 
 end
+
+
 
 
 
