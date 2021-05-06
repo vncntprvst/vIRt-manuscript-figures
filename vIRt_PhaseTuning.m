@@ -1,4 +1,4 @@
-function CV2=vIRt_CV2(whiskerPhase,ephysData,dataMask,splitEpochs)
+function [thetas,edges,phaseStats,phaseTuning,phaseCoherence]=vIRt_PhaseTuning(whiskerPhase,ephysData,dataMask,splitEpochs)
 
 %% Data masking: look at each whisking epoch
 wEpochs.behav=bwconncomp(dataMask.behav);
