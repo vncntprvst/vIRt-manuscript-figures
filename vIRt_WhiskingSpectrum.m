@@ -27,10 +27,12 @@ params.pad=0; % pad factor for fft
 params.err=[2 0.05];
 params.trialave=0;
 
-[wS.spectrumVals,wS.freqVals]=mtspectrumc(whiskingTrace',params);
-
-wS.peakFreq=wS.freqVals(wS.spectrumVals==max(wS.spectrumVals));
-
+try
+    [wS.spectrumVals,wS.freqVals]=mtspectrumc(whiskingTrace',params);
+    wS.peakFreq=wS.freqVals(wS.spectrumVals==max(wS.spectrumVals));
+catch
+    [wS.spectrumVals,wS.freqVals,wS.peakFreq]=deal(NaN);
+end
 % figure
 % plot(wS.freqVals,wS.spectrumVals)
 

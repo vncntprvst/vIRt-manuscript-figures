@@ -46,7 +46,7 @@ for unitNum=1:size(spikeRasters,1)
     for wEpochNum=1:numEpochs
         clearvars eWhiskerPhase
         eWhiskerPhase=whiskerPhase(wEpochs.behav.PixelIdxList{wEpochNum});
-        
+        if isempty(eWhiskerPhase); continue; end
         %% probability density function of phase for spiking events
         numBins=32; % each bin = pi/16 radians
         edges{unitNum,wEpochNum} = linspace(min(eWhiskerPhase), max(eWhiskerPhase), numBins*2+1);
