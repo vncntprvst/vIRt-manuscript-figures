@@ -14,10 +14,17 @@ baseDir='D:\Vincent\';
 
 load(fullfile(baseDir,'Analysis','Cell_List.mat'))
 allCells=1:size(cellList,1);
-tunedCells=find(cellList.Tuning==1);
 PTCells=find(cellList.PT==1);
 
-doPlot={'PTPlots'}; %'PTPlots TuningPlots' CV2 Spectrum
+doPlot={'transition'}; %'PTPlots TuningPlots' CV2 CV2_Slow Spectrum
+
+if contains(doPlot,'Slow')
+    %Slow oscillation analysis:
+    load(fullfile(baseDir,'Analysis','SlowOscillationIdx.mat'))
+    tunedCells= find(lowOscillationIdx); %see "Spectrum" analysis below
+else
+    tunedCells=find(cellList.Tuning==1);
+end
 
 %% Population phase tuning
 if any(contains(doPlot,'TuningPlots'))
@@ -381,14 +388,33 @@ if any(contains(doPlot,'Spectrum'))
     %         [spS(cellIdx).whiskPSDInt],'bd')
     
     %% low oscillation - PT
-    cellIdx=cellfun(@(x) x<9 ,{spS.medFreq},'UniformOutput',true)';
-    srCells=cellList(cellIdx,:);
-    srSpS=spS(cellIdx);
+    %   lowOscillationIdx=cellfun(@(x) x<10 ,{spS.medFreq},'UniformOutput',true)';
+    %   Started with that lowOscillationIdx index and run CellTuning and CV2
+    %   analyses to get those:
+    load(fullfile(baseDir,'Analysis','SlowOscillationIdx.mat'))
+    load(fullfile(baseDir,'Analysis','Cell_CV2_SO.mat'))
+    
+    lowOscillationIdx=find(lowOscillationIdx);
+    lowOscillationIdx=lowOscillationIdx(~isnan([CV2.CV2_withinBurst_ISI]));
+    
+    srCells=cellList(lowOscillationIdx,:);
+    srSpS=spS(lowOscillationIdx);
     cellIdx=srCells.PT==1;
     plot([srSpS(cellIdx).medFreq],...
-        [srSpS(cellIdx).R],'go')
+        [srSpS(cellIdx).R],'ko')
+    
+    CV2wbISI=[CV2(~isnan([CV2.CV2_withinBurst_ISI])).CV2_withinBurst_ISI];
+    
+    figure; hold on
+    plot([srSpS.medFreq],...
+        CV2wbISI,'k.')
+    plot([srSpS(cellIdx).medFreq],...
+        CV2wbISI(cellIdx),'bo')
     
     %     #104 isn't part of it because meanFreq is NaN - check that
+    
+    PT_LO=lowOscillationIdx(cellIdx);
+    %     PT_LO([srSpS(cellIdx).R]>20) %sufficient rate? Not appropriate
     
 end
 
@@ -423,7 +449,7 @@ if any(contains(doPlot,'PTPlots'))
         sessID=[char(cellList.Session(uIdx)) '_' num2str(cellList.RecordingID(uIdx))];
         dataDir=fullfile(baseDir,'Analysis','Data',sessID);
         load(fullfile(dataDir,[sessID '_ephys.mat']),'ephys');
-        load(fullfile(dataDir,[sessID '_pulses.mat']),'pulses');vIRt_TTL; 
+        load(fullfile(dataDir,[sessID '_pulses.mat']),'pulses');vIRt_TTL;
         load(fullfile(dataDir,[sessID '_recInfo.mat']),'recInfo');
         if ~exist('Z:/','dir')
             recInfo.dirName=strrep(recInfo.dirName,'Z:\Vincent\Ephys\','D:\Vincent\');
@@ -484,10 +510,10 @@ if any(contains(doPlot,'PTPlots'))
         PTmeasures(uIdx).latency=mean(latency);
         PTmeasures(uIdx).jitter=std(latency);
         
-%         if false
-            vIRt_PhotoTagPlots(ephys,pulses,uIdx,true);
-%             vIRt_CollisionTest(ephys,pulses,uIdx);
-%         end
+        %         if false
+        vIRt_PhotoTagPlots(ephys,pulses,uIdx,true);
+        %             vIRt_CollisionTest(ephys,pulses,uIdx);
+        %         end
         
         ephys=rmfield(ephys,'traces');
     end
@@ -516,13 +542,13 @@ if any(contains(doPlot,'PTPlots'))
     hold on
     Lathist=histogram([PTmeasures(1:5).latency],-1:10);
     Lathist.FaceColor = [1.0000    0.6784    0.0980]; %[1.0000    0.8941    0.7686];
-    Lathist.EdgeColor = 'k';    
-        
+    Lathist.EdgeColor = 'k';
+    
     xlabel('Latency distribution (ms)')
     ylabel('Count')
-    axis('tight'); box off; 
-%     set(gca,'xlim',[0 10^3],'Color','white','FontSize',10,'FontName','calibri','TickDir','out');
-%     set(gca,'XTick',[1,10,100,1000],'XTickLabel',[1,10,100,1000]);
+    axis('tight'); box off;
+    %     set(gca,'xlim',[0 10^3],'Color','white','FontSize',10,'FontName','calibri','TickDir','out');
+    %     set(gca,'XTick',[1,10,100,1000],'XTickLabel',[1,10,100,1000]);
     hold off
 end
 
@@ -531,15 +557,21 @@ if any(contains(doPlot,'OverviewPlot'))
     NBC_Plots_Overview(whiskers(bWhisk),whiskingEpochs,breathing,ephys,pulses.TTLTimes,false,false);
 end
 
-%% CV2 transition rythm plot
+%% CV2
 if any(contains(doPlot,'CV2'))
-    load(fullfile(baseDir,'Analysis','Cell_Tuning.mat'));
-    if exist(fullfile(baseDir,'Analysis','Cell_CV2.mat'),'file')
-        load(fullfile(baseDir,'Analysis','Cell_CV2.mat'));
+    switch doPlot{contains(doPlot,'CV2')}
+        case 'CV2'
+            load(fullfile(baseDir,'Analysis','Cell_Tuning.mat'));
+            CV2file='Cell_CV2.mat';
+        case 'CV2_Slow'
+            load(fullfile(baseDir,'Analysis','Cell_Tuning_SO.mat'));
+            CV2file='Cell_CV2_SO.mat';
+    end
+    if exist(fullfile(baseDir,'Analysis',CV2file),'file')
+        load(fullfile(baseDir,'Analysis',CV2file));
     else
         
         %% first compute propEpochCoh and phaseDiffTest to get epoch index
-        
         
         % for each cell, get which has significant different PDF
         phaseDiffTest=struct('globalPhaseDiff',[],'epochPhaseDiffIdx',[]);
@@ -576,8 +608,12 @@ if any(contains(doPlot,'CV2'))
             load(fullfile(dataDir,[sessID '_recInfo.mat']),'recInfo');
             ephys.recInfo=recInfo;
             
-            wEpochMask.epochIdx=(propEpochCoh(cellNum).coherEpochIdx & phaseDiffTest(cellNum).epochPhaseDiffIdx)';
-            
+            if ~contains(doPlot,'Slow')
+                wEpochMask.epochIdx=(propEpochCoh(cellNum).coherEpochIdx & phaseDiffTest(cellNum).epochPhaseDiffIdx)';
+            else
+                wEpochs=bwconncomp(wEpochMask.behav);
+                wEpochMask.epochIdx=true(1,sum(cellfun(@(x) length(x),wEpochs.PixelIdxList)>=3000));
+            end
             CV2(cellNum)=vIRt_CV2(whiskers(bWhisk).angle_BP,ephys,wEpochMask);
         end
     end
@@ -602,12 +638,105 @@ if any(contains(doPlot,'CV2'))
     %     legend('','FontSize',8);
     %     legend('boxoff')
     
+
+end
+
+%% transition rythm plot
+% transition: ISI should go from unimodal to bimodal
+if any(contains(doPlot,'transition'))
     
+    switch doPlot{contains(doPlot,'transition')}
+        case 'transition'
+            load(fullfile(baseDir,'Analysis','Cell_Tuning.mat'));
+            transitionfile='Cell_transition.mat';
+        case 'transition_Slow'
+            load(fullfile(baseDir,'Analysis','Cell_Tuning_SO.mat'));
+            transitionfile='Cell_transition_SO.mat';
+    end
+    %     if exist(fullfile(baseDir,'Analysis',...),'file')
+    %         load(fullfile(baseDir,'Analysis',...));
+    %     else
+    %
+    
+            %% first compute propEpochCoh and phaseDiffTest to get epoch index
+        
+        % for each cell, get which has significant different PDF
+        phaseDiffTest=struct('globalPhaseDiff',[],'epochPhaseDiffIdx',[]);
+        for cellNum=1:numel(tunedCells)
+            phaseDiffTest(cellNum).globalPhaseDiff=cellTuning(cellNum).global.phaseStats.spikePhaseStats(1);
+            phaseDiffTest(cellNum).epochPhaseDiffIdx=...
+                cellfun(@(x) x(1)<=0.05, {cellTuning(cellNum).epochs.phaseStats.spikePhaseStats});
+        end
+        % for each cell get which epochs has significant coherence
+        propEpochCoh=struct('coherEpochIdx',[],'fractionCoherEpoch',[],'manualClass',[]);
+        
+        for cellNum=1:numel(tunedCells)
+            epochCoh=cellfun(@(x,y) any(x>=y), {cellTuning(cellNum).epochs.phaseCoherence.coherMag},...
+                {cellTuning(cellNum).epochs.phaseCoherence.confC});
+            propEpochCoh(cellNum).fractionCoherEpoch=sum(epochCoh)/numel(epochCoh);
+            if cellList.tuningEpochs(cellNum) == 'all' % for comparison with manual classification
+                propEpochCoh(cellNum).manualClass=1;
+            else
+                propEpochCoh(cellNum).manualClass=0;
+            end
+            propEpochCoh(cellNum).coherEpochIdx=epochCoh;
+        end
+    
+    for cellNum=1:numel(tunedCells)
+        uIdx=tunedCells(cellNum);
+        sessID=[char(cellList.Session(uIdx)) '_' num2str(cellList.RecordingID(uIdx))];
+        dataDir=fullfile(baseDir,'Analysis','Data',sessID);
+        load(fullfile(dataDir,[sessID '_behavior.mat']),'whiskers','wEpochMask','bWhisk');
+        load(fullfile(dataDir,[sessID '_ephys.mat']),'ephys');
+        spikes=load(fullfile(dataDir,[sessID '_Unit' num2str(cellList.unitIndex(uIdx)) '.mat']));
+        ephys.selectedUnits=spikes.unitId;
+        load(fullfile(dataDir,[sessID '_recInfo.mat']),'recInfo');
+        ephys.recInfo=recInfo;
+        
+        if ~contains(doPlot,'Slow')
+            wEpochMask.epochIdx=(propEpochCoh(cellNum).coherEpochIdx & phaseDiffTest(cellNum).epochPhaseDiffIdx)';
+        else
+            wEpochs=bwconncomp(wEpochMask.behav);
+            wEpochMask.epochIdx=true(1,sum(cellfun(@(x) length(x),wEpochs.PixelIdxList)>=3000));
+        end
+        vIRt_transition(whiskers(bWhisk).angle_BP,ephys,wEpochMask);
+    end
+    %     end
 end
 
 
-
 %% Supplementary
+% Proba tuning plot: main figure for now - done
+% retraction cell video - done
 % Slow rhythm tunings: setpoint / breathing
-% Proba tuning plot: main figure for now
-% retraction cell video
+
+% Additionally, 2 out of the 7 photo-tagged vIRtPV neurons and 10 untagged neurons
+% were found to have slower rhythms, with bursting bouts occurring across multiple
+% whisking cycles (Extended Data Fig. Xa), potentially linked to whisking midpoint
+% and/or the slower breathing rhythm (Extended Data Fig. Xb-Xc).
+% PT Slow
+% See PT_LO
+
+% Slow Oscillation / putative setpoint Tuning
+% vIRt47_0803_5900 U27 srCell 33/40
+% vIRt44_1210_5450 U12 srCell 34/40
+
+% See
+% Overview Excerpt - vIRt47_0803_5900 - T188 - 194s U27 slow oscillation: great, also PT
+% Overview Excerpt - vIRt44_1210_5450 - T124-132s- U12 slow oscillation: also PT
+% SetpointTuning - vIRt49_0915_5400 - Unit 25 - late retraction tuning-01
+% Overview_Excerpt 57 77 vIRt49_0915_5400 Unit 25
+% Overview_Excerpt1_vIRt49_0915_5048 - Unit 58
+
+% Breathing candidates:
+% vIRt44_1210_5500
+% vIRt44_1210_5100
+% vIRt47_0805_5200
+% vIRt50_1022_5250
+% vIRt50_1022_5450
+% vIRt51_1203_5650
+
+% See:
+% Overview Excerpt - vIRt44_1210_5100 - T92-94s - U11 U14 opposite breathing rhythm
+% Overview excerpt - vIRt50_1022_5250 - T151-167s - nice breathing units
+% Overview_Excerpt_vIRt51_1203_5650_Breathing unit
