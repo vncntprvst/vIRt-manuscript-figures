@@ -16,7 +16,7 @@ load(fullfile(baseDir,'Analysis','Cell_List.mat'))
 allCells=1:size(cellList,1);
 PTCells=find(cellList.PT==1);
 
-doPlot={'transition'}; %'PTPlots TuningPlots' CV2 CV2_Slow Spectrum
+doPlot={'transition'}; %'PTPlots TuningPlots' CV2 CV2_Slow Spectrum transition transition_Slow
 
 if contains(doPlot,'Slow')
     %Slow oscillation analysis:
@@ -638,11 +638,12 @@ if any(contains(doPlot,'CV2'))
     %     legend('','FontSize',8);
     %     legend('boxoff')
     
-
+    
 end
 
 %% transition rythm plot
-% transition: ISI should go from unimodal to bimodal
+% transition: ISI / spectrogram should go from unimodal to bimodal
+% Figure 2 panel: vIRt47_0805_5744 U 8/13/19 (R) 1 (P) Cell#3 : 19
 if any(contains(doPlot,'transition'))
     
     switch doPlot{contains(doPlot,'transition')}
@@ -658,30 +659,32 @@ if any(contains(doPlot,'transition'))
     %     else
     %
     
-            %% first compute propEpochCoh and phaseDiffTest to get epoch index
-        
-        % for each cell, get which has significant different PDF
-        phaseDiffTest=struct('globalPhaseDiff',[],'epochPhaseDiffIdx',[]);
-        for cellNum=1:numel(tunedCells)
-            phaseDiffTest(cellNum).globalPhaseDiff=cellTuning(cellNum).global.phaseStats.spikePhaseStats(1);
-            phaseDiffTest(cellNum).epochPhaseDiffIdx=...
-                cellfun(@(x) x(1)<=0.05, {cellTuning(cellNum).epochs.phaseStats.spikePhaseStats});
-        end
-        % for each cell get which epochs has significant coherence
-        propEpochCoh=struct('coherEpochIdx',[],'fractionCoherEpoch',[],'manualClass',[]);
-        
-        for cellNum=1:numel(tunedCells)
-            epochCoh=cellfun(@(x,y) any(x>=y), {cellTuning(cellNum).epochs.phaseCoherence.coherMag},...
-                {cellTuning(cellNum).epochs.phaseCoherence.confC});
-            propEpochCoh(cellNum).fractionCoherEpoch=sum(epochCoh)/numel(epochCoh);
-            if cellList.tuningEpochs(cellNum) == 'all' % for comparison with manual classification
-                propEpochCoh(cellNum).manualClass=1;
-            else
-                propEpochCoh(cellNum).manualClass=0;
-            end
-            propEpochCoh(cellNum).coherEpochIdx=epochCoh;
-        end
+    %% first compute propEpochCoh and phaseDiffTest to get epoch index
     
+    % for each cell, get which has significant different PDF
+    phaseDiffTest=struct('globalPhaseDiff',[],'epochPhaseDiffIdx',[]);
+    for cellNum=1:numel(tunedCells)
+        phaseDiffTest(cellNum).globalPhaseDiff=cellTuning(cellNum).global.phaseStats.spikePhaseStats(1);
+        phaseDiffTest(cellNum).epochPhaseDiffIdx=...
+            cellfun(@(x) x(1)<=0.05, {cellTuning(cellNum).epochs.phaseStats.spikePhaseStats});
+    end
+    % for each cell get which epochs has significant coherence
+    propEpochCoh=struct('coherEpochIdx',[],'fractionCoherEpoch',[],'manualClass',[]);
+    
+    for cellNum=1:numel(tunedCells)
+        epochCoh=cellfun(@(x,y) any(x>=y), {cellTuning(cellNum).epochs.phaseCoherence.coherMag},...
+            {cellTuning(cellNum).epochs.phaseCoherence.confC});
+        propEpochCoh(cellNum).fractionCoherEpoch=sum(epochCoh)/numel(epochCoh);
+        if cellList.tuningEpochs(cellNum) == 'all' % for comparison with manual classification
+            propEpochCoh(cellNum).manualClass=1;
+        else
+            propEpochCoh(cellNum).manualClass=0;
+        end
+        propEpochCoh(cellNum).coherEpochIdx=epochCoh;
+    end
+    
+   transition=struct('ISIs',[],'spS',[]);
+
     for cellNum=1:numel(tunedCells)
         uIdx=tunedCells(cellNum);
         sessID=[char(cellList.Session(uIdx)) '_' num2str(cellList.RecordingID(uIdx))];
@@ -693,13 +696,52 @@ if any(contains(doPlot,'transition'))
         load(fullfile(dataDir,[sessID '_recInfo.mat']),'recInfo');
         ephys.recInfo=recInfo;
         
-        if ~contains(doPlot,'Slow')
-            wEpochMask.epochIdx=(propEpochCoh(cellNum).coherEpochIdx & phaseDiffTest(cellNum).epochPhaseDiffIdx)';
-        else
+        % check whisking epochs first
+        
+        if ~isfield(wEpochMask,'ampThd')
+            ampThd=8; %12; %18 %amplitude threshold
+            freqThld=3; %1 %frequency threshold
+            minBoutDur=3000; %500; % 1000 % minimum whisking bout duration: 1s
+            whiskingEpochs=WhiskingFun.FindWhiskingEpochs(...
+                whiskers(bWhisk).amplitude,whiskers(bWhisk).frequency,...
+                ampThd, freqThld, minBoutDur);
+            whiskingEpochs(isnan(whiskingEpochs))=false; %just in case
+            whiskingEpochsList=bwconncomp(whiskingEpochs);
+            [~,wBoutDurSort]=sort(cellfun(@length,whiskingEpochsList.PixelIdxList),'descend');
+            whiskingEpochsList.PixelIdxListSorted=whiskingEpochsList.PixelIdxList(wBoutDurSort);
+            
+            
+            figure; hold on;
+            plot(whiskers(bWhisk).angle);
+            plot(wEpochMask.behav*nanstd(whiskers(bWhisk).angle)+nanmean(whiskers(bWhisk).angle))
+            plot(whiskingEpochs*nanstd(whiskers(bWhisk).angle)+nanmean(whiskers(bWhisk).angle))
+            
+            if false
+                % vIRt51_1201_5300: ampThd=15; freqThld=3; minBoutDur=3000;  
+                % vIRt47_0805_5744: ampThd=10; freqThld=3; minBoutDur=3000;
+                % vIRt44_1210_5450: ampThd=18; freqThld=3; minBoutDur=1500;
+                % vIRt51_1202_5280: ampThd=14; freqThld=3; minBoutDur=3000;
+                % save to wEpochMask
+                wEpochMask.ampThd=ampThd;
+                wEpochMask.freqThld=freqThld;
+                wEpochMask.minBoutDur=minBoutDur;
+                diffBE=find(wEpochMask.ephys,1)-find(wEpochMask.behav,1);
+                modEMask=false(1,size(wEpochMask.ephys,2));
+                modEMask([1:size(wEpochMask.behav,2)]+diffBE)=whiskingEpochs;
+                wEpochMask.behav=whiskingEpochs;
+                wEpochMask.ephys=modEMask;
+                save(fullfile(dataDir,[sessID '_behavior.mat']),'wEpochMask','-append')%,'bWhisk'
+            end
+        end
+%         if ~contains(doPlot,'Slow')
+%             wEpochMask.epochIdx=(propEpochCoh(cellNum).coherEpochIdx & phaseDiffTest(cellNum).epochPhaseDiffIdx)';
+%         else
             wEpochs=bwconncomp(wEpochMask.behav);
             wEpochMask.epochIdx=true(1,sum(cellfun(@(x) length(x),wEpochs.PixelIdxList)>=3000));
-        end
-        vIRt_transition(whiskers(bWhisk).angle_BP,ephys,wEpochMask);
+%         end
+        
+          [transition(cellNum).ISIs,transition(cellNum).spS]=...
+              vIRt_transition(whiskers(bWhisk).angle,ephys,wEpochMask,uIdx,true);
     end
     %     end
 end
