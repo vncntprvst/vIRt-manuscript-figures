@@ -16,7 +16,7 @@ load(fullfile(baseDir,'Analysis','Cell_List.mat'))
 allCells=1:size(cellList,1);
 PTCells=find(cellList.PT==1);
 
-doPlot={'transition'}; %'PTPlots TuningPlots' CV2 CV2_Slow Spectrum transition transition_Slow
+doPlot={'transition'}; %'PTPlots TuningPlots' CV2 CV2_Slow Spectrum transition transition_Slow activation
 
 if contains(doPlot,'Slow')
     %Slow oscillation analysis:
@@ -154,7 +154,7 @@ if any(contains(doPlot,'TuningPlots'))
     midP_group=thetas>=deg2rad(-115) & thetas<deg2rad(-30);% & ~lowMedFreq;
     midR_group=thetas>=deg2rad(65) & thetas<deg2rad(150);% & ~lowMedFreq;
     
-    % plot coherence in polar coordinates
+    %% plot coherence in polar coordinates
     figure;
     %     polarplot(thetas,rhos,'o','LineWidth',2);
     polarplot(thetas(R_group),rhos(R_group),'o',...
@@ -641,7 +641,7 @@ if any(contains(doPlot,'CV2'))
     
 end
 
-%% transition rythm plot
+%% Transition rythm plot
 % transition: ISI / spectrogram should go from unimodal to bimodal
 % Figure 2 panel: vIRt47_0805_5744 U 8/13/19 (R) 1 (P) Cell#3 : 19
 if any(contains(doPlot,'transition'))
@@ -683,9 +683,9 @@ if any(contains(doPlot,'transition'))
         propEpochCoh(cellNum).coherEpochIdx=epochCoh;
     end
     
-   transition=struct('ISIs',[],'spS',[]);
-
-    for cellNum=1:numel(tunedCells)
+    transition=struct('ISIs',[],'spS',[]);
+    
+    for cellNum=12:numel(tunedCells)
         uIdx=tunedCells(cellNum);
         sessID=[char(cellList.Session(uIdx)) '_' num2str(cellList.RecordingID(uIdx))];
         dataDir=fullfile(baseDir,'Analysis','Data',sessID);
@@ -698,7 +698,7 @@ if any(contains(doPlot,'transition'))
         
         % check whisking epochs first
         
-        if ~isfield(wEpochMask,'ampThd')
+        if false %~isfield(wEpochMask,'ampThd')
             ampThd=8; %12; %18 %amplitude threshold
             freqThld=3; %1 %frequency threshold
             minBoutDur=3000; %500; % 1000 % minimum whisking bout duration: 1s
@@ -717,7 +717,7 @@ if any(contains(doPlot,'transition'))
             plot(whiskingEpochs*nanstd(whiskers(bWhisk).angle)+nanmean(whiskers(bWhisk).angle))
             
             if false
-                % vIRt51_1201_5300: ampThd=15; freqThld=3; minBoutDur=3000;  
+                % vIRt51_1201_5300: ampThd=15; freqThld=3; minBoutDur=3000;
                 % vIRt47_0805_5744: ampThd=10; freqThld=3; minBoutDur=3000;
                 % vIRt44_1210_5450: ampThd=18; freqThld=3; minBoutDur=1500;
                 % vIRt51_1202_5280: ampThd=14; freqThld=3; minBoutDur=3000;
@@ -733,18 +733,203 @@ if any(contains(doPlot,'transition'))
                 save(fullfile(dataDir,[sessID '_behavior.mat']),'wEpochMask','-append')%,'bWhisk'
             end
         end
-%         if ~contains(doPlot,'Slow')
-%             wEpochMask.epochIdx=(propEpochCoh(cellNum).coherEpochIdx & phaseDiffTest(cellNum).epochPhaseDiffIdx)';
-%         else
-            wEpochs=bwconncomp(wEpochMask.behav);
-            wEpochMask.epochIdx=true(1,sum(cellfun(@(x) length(x),wEpochs.PixelIdxList)>=3000));
-%         end
+        %         if ~contains(doPlot,'Slow')
+        %             wEpochMask.epochIdx=(propEpochCoh(cellNum).coherEpochIdx & phaseDiffTest(cellNum).epochPhaseDiffIdx)';
+        %         else
+        wEpochs=bwconncomp(wEpochMask.behav);
+        wEpochMask.epochIdx=true(1,sum(cellfun(@(x) length(x),wEpochs.PixelIdxList)>=3000));
+        %         end
         
-          [transition(cellNum).ISIs,transition(cellNum).spS]=...
-              vIRt_transition(whiskers(bWhisk).angle,ephys,wEpochMask,uIdx,true);
+        [transition(cellNum).ISIs,transition(cellNum).spS]=...
+            vIRt_transition(whiskers(bWhisk).angle,ephys,wEpochMask,uIdx,true);
     end
     %     end
+    
+    %% plot average spectrums
+    timeVals=-1.4:0.05:2.5;
+    freqVals=transition(1).spS.freqVals;
+    spectrumVals=cellfun(@(x) resample(timeseries(x.spectrumVals,x.time-2),timeVals), {transition.spS}', 'UniformOutput', false);
+    spectrumVals=cellfun(@(x) 10*log10(x.Data),spectrumVals,'UniformOutput',false);
+    
+
+    
+    % define groups
+    rhos=[cellTuning.peakCMag]; % #13 and 18 are out based on phase diff and coherence
+    thetas=[cellTuning.peakCPhase];
+    thetas(isnan(rhos))=NaN;
+    P_group=thetas>=deg2rad(150) | thetas<deg2rad(-115);% & ~lowMedFreq;
+    R_group=thetas>=deg2rad(-30) & thetas<deg2rad(65);% & ~lowMedFreq;
+    midP_group=thetas>=deg2rad(-115) & thetas<deg2rad(-30);% & ~lowMedFreq;
+    midR_group=thetas>=deg2rad(65) & thetas<deg2rad(150);% & ~lowMedFreq;
+    
+    R_group=find(R_group);
+    P_group=find(P_group);
+midP_group=find(midP_group);
+midR_group=find(midR_group);
+%     % x 12 / 22 ~ 13 / 15 
+%     for plotNum=1:25
+%         figure; 
+%         imagesc(timeVals,freqVals,spectrumVals{R_group(plotNum)}')
+%     end
+R_group=R_group(~ismember(1:25,[12 13 15 22]));
+
+
+% all together
+    meanSpectrumVals=nanmean(cat(3,spectrumVals{[R_group P_group midP_group midR_group]}),3);
+
+    % plot by group
+    meanSpectrumVals=nanmean(cat(3,spectrumVals{[R_group P_group midP_group midR_group]}),3);
+    figure('color','white');
+    imagesc(timeVals,freqVals,meanSpectrumVals');
+    xline(0,'LineWidth',2,'Color',[0 0 0 0.5])
+    axis('tight');box off;
+    xlabel('Time (ms)')
+    ylabel('Frequency (Hz)');
+    set(gca,'xlim',[-1 2],'ylim',[1 25],'xticklabels',-1:0.5:2,'YDir','normal',...
+        'FontSize',10,'FontName','Helvetica','TickDir','out','Color','white');%'Calibri'
+    cbH=colorbar;
+    set(cbH,'ydir','normal','TickDir','out','box','off')
+    ylabel(cbH, 'Power (dB)','fontsize',10);% if "raw" PSD (\muV^2/Hz)
+    
+    
 end
+
+%% DK's summary plot (last panel)
+% 	Also, may I suggest that a summary plot of the activation data would be of use.
+%     There is pre-rate, post-rate, and maybe color to indicate modulation frequency wrt whisking frequency.
+%
+% 	Another plot to consider is a scatter plot of change in average spike rate versus change in set-point.
+% 	It fears on the issue of a common drive to activate the vIRT oscillation and depolarize
+if any(contains(doPlot,'activation'))
+    
+    switch doPlot{contains(doPlot,'activation')}
+        case 'activation'
+            load(fullfile(baseDir,'Analysis','Cell_Tuning.mat'));
+        case 'activation_Slow'
+            load(fullfile(baseDir,'Analysis','Cell_Tuning_SO.mat'));
+    end
+    
+    %% first compute propEpochCoh and phaseDiffTest to get epoch index
+    
+    % for each cell, get which has significant different PDF
+    phaseDiffTest=struct('globalPhaseDiff',[],'epochPhaseDiffIdx',[]);
+    for cellNum=1:numel(tunedCells)
+        phaseDiffTest(cellNum).globalPhaseDiff=cellTuning(cellNum).global.phaseStats.spikePhaseStats(1);
+        phaseDiffTest(cellNum).epochPhaseDiffIdx=...
+            cellfun(@(x) x(1)<=0.05, {cellTuning(cellNum).epochs.phaseStats.spikePhaseStats});
+    end
+    % for each cell get which epochs has significant coherence
+    propEpochCoh=struct('coherEpochIdx',[],'fractionCoherEpoch',[],'manualClass',[]);
+    
+    for cellNum=1:numel(tunedCells)
+        epochCoh=cellfun(@(x,y) any(x>=y), {cellTuning(cellNum).epochs.phaseCoherence.coherMag},...
+            {cellTuning(cellNum).epochs.phaseCoherence.confC});
+        propEpochCoh(cellNum).fractionCoherEpoch=sum(epochCoh)/numel(epochCoh);
+        if cellList.tuningEpochs(cellNum) == 'all' % for comparison with manual classification
+            propEpochCoh(cellNum).manualClass=1;
+        else
+            propEpochCoh(cellNum).manualClass=0;
+        end
+        propEpochCoh(cellNum).coherEpochIdx=epochCoh;
+    end
+    
+    activation=struct('FR',[],'WF',[]);
+    
+    %% get activation data
+    for cellNum=1:numel(tunedCells)
+        uIdx=tunedCells(cellNum);
+        sessID=[char(cellList.Session(uIdx)) '_' num2str(cellList.RecordingID(uIdx))];
+        dataDir=fullfile(baseDir,'Analysis','Data',sessID);
+        load(fullfile(dataDir,[sessID '_behavior.mat']),'whiskers','wEpochMask','bWhisk');
+        load(fullfile(dataDir,[sessID '_ephys.mat']),'ephys');
+        spikes=load(fullfile(dataDir,[sessID '_Unit' num2str(cellList.unitIndex(uIdx)) '.mat']));
+        ephys.selectedUnits=spikes.unitId;
+        load(fullfile(dataDir,[sessID '_recInfo.mat']),'recInfo');
+        ephys.recInfo=recInfo;
+        
+        % check whisking epochs first
+        
+        if false %~isfield(wEpochMask,'ampThd')
+            ampThd=8; %12; %18 %amplitude threshold
+            freqThld=3; %1 %frequency threshold
+            minBoutDur=3000; %500; % 1000 % minimum whisking bout duration: 1s
+            whiskingEpochs=WhiskingFun.FindWhiskingEpochs(...
+                whiskers(bWhisk).amplitude,whiskers(bWhisk).frequency,...
+                ampThd, freqThld, minBoutDur);
+            whiskingEpochs(isnan(whiskingEpochs))=false; %just in case
+            whiskingEpochsList=bwconncomp(whiskingEpochs);
+            [~,wBoutDurSort]=sort(cellfun(@length,whiskingEpochsList.PixelIdxList),'descend');
+            whiskingEpochsList.PixelIdxListSorted=whiskingEpochsList.PixelIdxList(wBoutDurSort);
+            
+            
+            figure; hold on;
+            plot(whiskers(bWhisk).angle);
+            plot(wEpochMask.behav*nanstd(whiskers(bWhisk).angle)+nanmean(whiskers(bWhisk).angle))
+            plot(whiskingEpochs*nanstd(whiskers(bWhisk).angle)+nanmean(whiskers(bWhisk).angle))
+            
+            if false
+                % vIRt51_1201_5300: ampThd=15; freqThld=3; minBoutDur=3000;
+                % vIRt47_0805_5744: ampThd=10; freqThld=3; minBoutDur=3000;
+                % vIRt44_1210_5450: ampThd=18; freqThld=3; minBoutDur=1500;
+                % vIRt51_1202_5280: ampThd=14; freqThld=3; minBoutDur=3000;
+                % save to wEpochMask
+                wEpochMask.ampThd=ampThd;
+                wEpochMask.freqThld=freqThld;
+                wEpochMask.minBoutDur=minBoutDur;
+                diffBE=find(wEpochMask.ephys,1)-find(wEpochMask.behav,1);
+                modEMask=false(1,size(wEpochMask.ephys,2));
+                modEMask([1:size(wEpochMask.behav,2)]+diffBE)=whiskingEpochs;
+                wEpochMask.behav=whiskingEpochs;
+                wEpochMask.ephys=modEMask;
+                save(fullfile(dataDir,[sessID '_behavior.mat']),'wEpochMask','-append')%,'bWhisk'
+            end
+        end
+        %         if ~contains(doPlot,'Slow')
+        %             wEpochMask.epochIdx=(propEpochCoh(cellNum).coherEpochIdx & phaseDiffTest(cellNum).epochPhaseDiffIdx)';
+        %         else
+        wEpochs=bwconncomp(wEpochMask.behav);
+        wEpochMask.epochIdx=true(1,sum(cellfun(@(x) length(x),wEpochs.PixelIdxList)>=3000));
+        %         end
+        
+        activation(cellNum)=vIRt_activation(whiskers(bWhisk),ephys,wEpochMask,uIdx,false);
+    end
+    %     end
+    
+    %% plots
+    % define groups
+    rhos=[cellTuning.peakCMag]; % #13 and 18 are out based on phase diff and coherence
+    thetas=[cellTuning.peakCPhase];
+    thetas(isnan(rhos))=NaN;
+    P_group=thetas>=deg2rad(150) | thetas<deg2rad(-115);% & ~lowMedFreq;
+    R_group=thetas>=deg2rad(-30) & thetas<deg2rad(65);% & ~lowMedFreq;
+    midP_group=thetas>=deg2rad(-115) & thetas<deg2rad(-30);% & ~lowMedFreq;
+    midR_group=thetas>=deg2rad(65) & thetas<deg2rad(150);% & ~lowMedFreq;
+    
+    preFR=cellfun(@(x) x.pre, {activation.FR}');
+    postFR=cellfun(@(x) x.post, {activation.FR}');
+    preFR(postFR<20)=NaN;
+    postFR=postFR(~isnan(preFR));
+    preFR=preFR(~isnan(preFR));
+    
+    figure('color','white')
+    hold on
+    plot(zeros(1,numel(preFR)),preFR,'o',...
+        'MarkerFaceColor',[204 0 102]/255,'MarkerEdgeColor','None','LineWidth',2);
+    plot(ones(1,numel(postFR)),postFR,'d',...
+        'MarkerFaceColor',[76 53 0]/255,'MarkerEdgeColor','None','LineWidth',2);
+    plot([0 1],[preFR postFR],'color',[0.5 0.5 0.5 0.5],'LineWidth',1);
+    plot([0 1],[nanmean(preFR), nanmean(postFR)],'color','k','LineWidth',2);
+       
+    axis('tight');box off;
+    xlabel('Pre/Post activation')
+    ylabel('FR');
+    set(gca,'xlim',[-0.5 1.5],'ylim',[0 100],'xtick', [0 1] ,'xticklabels',{'Pre','Post'},...
+        'FontSize',10,'FontName','Helvetica','TickDir','out','Color','white');%'Calibri'
+    
+    legend({},'FontSize',8);
+    legend('boxoff')
+end
+
 
 
 %% Supplementary

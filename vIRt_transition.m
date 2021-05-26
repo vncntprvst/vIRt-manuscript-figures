@@ -72,23 +72,28 @@ for unitNum=1:size(spikeRasters,1)
     wEpochs.ephys.PixelIdxList=wEpochs.ephys.PixelIdxList(~cellfun(@isempty, {spikeTimes.interW}));
     spikeTimes=spikeTimes(~cellfun(@isempty, {spikeTimes.interW}));
     [numEpochs,wEpochs.behav.NumObjects,wEpochs.ephys.NumObjects]=deal(size(spikeTimes,2));
+    
     % isi with Chronux
-    [interISI_hist,interBins]=isi(rmfield(spikeTimes,'intraW'));
-    [intraISI_hist,intraBins]=isi(rmfield(spikeTimes,'interW'));
-    
-    if savePlots
-        figure('Color','white','name',...
-            [fileName ' Unit' num2str(ephysData.selectedUnits(unitNum))]); hold on
-        subplot(1,4,4); hold on
-        bar(intraBins,intraISI_hist,2)
-        bar(interBins,interISI_hist,2)
-        legend('intra-whisking ISI','inter-whisking ISI')
+    try
+        [interISI_hist,interBins]=isi(rmfield(spikeTimes,'intraW'));
+        [intraISI_hist,intraBins]=isi(rmfield(spikeTimes,'interW'));
+        
+        if savePlots
+            figure('Color','white','name',...
+                [fileName ' Unit' num2str(ephysData.selectedUnits(unitNum))]); hold on
+            subplot(1,4,4); hold on
+            bar(intraBins,intraISI_hist,2)
+            bar(interBins,interISI_hist,2)
+            legend('intra-whisking ISI','inter-whisking ISI')
+        end
+        
+        ISIs.inter.vals=interISI_hist;
+        ISIs.inter.bins=interBins;
+        ISIs.intra.vals=intraISI_hist;
+        ISIs.intra.bins=intraBins;
+    catch
+        ISIs=[];
     end
-    
-    ISIs.inter.vals=interISI_hist;
-    ISIs.inter.bins=interBins;
-    ISIs.intra.vals=intraISI_hist;
-    ISIs.intra.bins=intraBins;
     
     for wEpochNum=1:numEpochs
         spikeTimes(wEpochNum).interW=spikeTimes(wEpochNum).interW/1000;
@@ -123,10 +128,10 @@ for unitNum=1:size(spikeRasters,1)
         ylabel(cbH, 'Power (dB)','fontsize',10);% if "raw" PSD (\muV^2/Hz)
         
         if false %individual whisking epochs
-        params.trialave=0;
-        [spS.spectrumVals,spS.time,spS.freqVals]=...
-            mtspecgrampt(rmfield(spikeTimes,{'intraW','interW'}),movingwin,params);
-        
+            params.trialave=0;
+            [spS.spectrumVals,spS.time,spS.freqVals]=...
+                mtspecgrampt(rmfield(spikeTimes,{'intraW','interW'}),movingwin,params);
+            
             for wEpochNum=1:numEpochs
                 figure('Color','white');
                 subplot(2,1,1); hold on
