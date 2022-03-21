@@ -16,7 +16,7 @@ load(fullfile(baseDir,'Analysis','Cell_List.mat'))
 allCells=1:size(cellList,1);
 PTCells=find(cellList.PT==1);
 
-doPlot={'transition'}; %'PTPlots TuningPlots' CV2 CV2_Slow Spectrum transition transition_Slow activation
+doPlot={'ModDepth'}; %'PTPlots TuningPlots' CV2 CV2_Slow ModDepth ModDepth_Slow Spectrum transition transition_Slow activation
 
 if contains(doPlot,'Slow')
     %Slow oscillation analysis:
@@ -25,6 +25,9 @@ if contains(doPlot,'Slow')
 else
     tunedCells=find(cellList.Tuning==1);
 end
+
+% Number of mice
+fprintf('Number of mice n = %d\n', numel(unique(cellList.Subject(tunedCells))));
 
 %% Population phase tuning
 if any(contains(doPlot,'TuningPlots'))
@@ -634,6 +637,95 @@ if any(contains(doPlot,'CV2'))
         'max Retraction','','','Protraction','',''};
     paH.ThetaDir = 'counterclockwise';
     paH.RLim = [0 2];
+    %     hold on
+    %     legend('','FontSize',8);
+    %     legend('boxoff')
+    
+    
+end
+
+%% Modulation Depth
+if any(contains(doPlot,'ModDepth'))
+    switch doPlot{contains(doPlot,'ModDepth')}
+        case 'ModDepth'
+            load(fullfile(baseDir,'Analysis','Cell_Tuning.mat'));
+            ModDepthfile='Cell_ModDepth.mat';
+        case 'ModDepth_Slow'
+            load(fullfile(baseDir,'Analysis','Cell_Tuning_SO.mat'));
+            ModDepthfile='Cell_ModDepth_SO.mat';
+    end
+    if exist(fullfile(baseDir,'Analysis',ModDepthfile),'file')
+        load(fullfile(baseDir,'Analysis',ModDepthfile));
+    else
+        
+        %% first compute propEpochCoh and phaseDiffTest to get epoch index
+        
+        % for each cell, get which has significant different PDF
+        phaseDiffTest=struct('globalPhaseDiff',[],'epochPhaseDiffIdx',[]);
+        for cellNum=1:numel(tunedCells)
+            phaseDiffTest(cellNum).globalPhaseDiff=cellTuning(cellNum).global.phaseStats.spikePhaseStats(1);
+            phaseDiffTest(cellNum).epochPhaseDiffIdx=...
+                cellfun(@(x) x(1)<=0.05, {cellTuning(cellNum).epochs.phaseStats.spikePhaseStats});
+        end
+        % for each cell get which epochs has significant coherence
+        propEpochCoh=struct('coherEpochIdx',[],'fractionCoherEpoch',[],'manualClass',[]);
+        
+        for cellNum=1:numel(tunedCells)
+            epochCoh=cellfun(@(x,y) any(x>=y), {cellTuning(cellNum).epochs.phaseCoherence.coherMag},...
+                {cellTuning(cellNum).epochs.phaseCoherence.confC});
+            propEpochCoh(cellNum).fractionCoherEpoch=sum(epochCoh)/numel(epochCoh);
+            if cellList.tuningEpochs(cellNum) == 'all' % for comparison with manual classification
+                propEpochCoh(cellNum).manualClass=1;
+            else
+                propEpochCoh(cellNum).manualClass=0;
+            end
+            propEpochCoh(cellNum).coherEpochIdx=epochCoh;
+        end
+        
+        modDepth=nan(numel(tunedCells),1);
+        
+        for cellNum=1:numel(tunedCells)
+            uIdx=tunedCells(cellNum);
+            sessID=[char(cellList.Session(uIdx)) '_' num2str(cellList.RecordingID(uIdx))];
+            dataDir=fullfile(baseDir,'Analysis','Data',sessID);
+            load(fullfile(dataDir,[sessID '_behavior.mat']),'whiskers','wEpochMask','bWhisk');
+            load(fullfile(dataDir,[sessID '_ephys.mat']),'ephys');
+            spikes=load(fullfile(dataDir,[sessID '_Unit' num2str(cellList.unitIndex(uIdx)) '.mat']));
+            ephys.selectedUnits=spikes.unitId;
+            load(fullfile(dataDir,[sessID '_recInfo.mat']),'recInfo');
+            ephys.recInfo=recInfo;
+            
+            if ~contains(doPlot,'Slow')
+                wEpochMask.epochIdx=(propEpochCoh(cellNum).coherEpochIdx & phaseDiffTest(cellNum).epochPhaseDiffIdx)';
+            else
+                wEpochs=bwconncomp(wEpochMask.behav);
+                wEpochMask.epochIdx=true(1,sum(cellfun(@(x) length(x),wEpochs.PixelIdxList)>=3000));
+            end
+            try 
+                modDepth(cellNum)=vIRt_ModDepth(whiskers(bWhisk).phase,ephys,wEpochMask);
+            catch
+                continue
+            end
+        end
+        
+    end
+    %% plot ModDepths
+    
+    rhos=modDepth; 
+    thetas=[cellTuning.peakCPhase];
+    thetas(isnan(rhos))=NaN;
+    
+    % plot ModDepth in polar coordinates
+    figure;
+    polarplot(thetas,rhos,'o',...
+        'MarkerFaceColor','k','MarkerEdgeColor','None','LineWidth',2); %cmap(5,:)
+    
+    paH = gca;
+    paH.ThetaZeroLocation='left';
+    paH.ThetaTickLabel={'max Protraction','','','Retraction','','',...
+        'max Retraction','','','Protraction','',''};
+    paH.ThetaDir = 'counterclockwise';
+    paH.RLim = [0 6];
     %     hold on
     %     legend('','FontSize',8);
     %     legend('boxoff')
