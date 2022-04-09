@@ -13,6 +13,13 @@ cellQR=table('Size',[0,10],'VariableTypes',...
     {'categorical','categorical','double','double','logical','string','string','string','double','double'},...
     'VariableNames',{'Subject','Session','RecordingID','unitIndex','keepIndex',...
     'unitTuning','tuningEpochs','unitPT','unitFrequency','unitQuality'});
+
+%% For Revision 1 
+manuscript_version='rev1';
+rev1_vIRt_sessIdx=contains(vIRt_sess.KeepList,"1") &...
+    contains(vIRt_sess.("Manuscript version"),manuscript_version);
+vIRt_sess=vIRt_sess(rev1_vIRt_sessIdx,:);
+
 %% load data across sessions
 for sessionNum=1:size(vIRt_sess,1)
     if ~(vIRt_sess.WR(sessionNum)== '')
@@ -31,7 +38,7 @@ for sessionNum=1:size(vIRt_sess,1)
             [whiskingEpochs,whiskingEpochsList]=vIRt_Epochs(whiskers,bWhisk,ampThd,freqThld,minBoutDur);
             
             % epoch mask (all tuning computation must be done outside of pulse stimulation)
-            wEpochMask=vIRt_EpochMask(whiskers(bWhisk).angle,sessData.pulses,sessData.behav.vidTimes,...
+            wEpochMask=vIRt_EpochMask(whiskers,bWhisk,sessData.pulses,sessData.behav.vidTimes,...
                 whiskingEpochs,size(ephys.rasters,2));
             
             % Decide which units to keep based on notes and plots
@@ -55,9 +62,9 @@ for sessionNum=1:size(vIRt_sess,1)
                 horzcat(repmat(vIRt_sess(sessionNum,1:3),sum(unitIdx),1),...
                 ephys.qualityReport(unitIdx,:)));
         end
-            save(fullfile(baseDir,'Analysis','Cell_List.mat'),'cellQR');
+            save(fullfile(baseDir,'Analysis',['Cell_List_' manuscript_version '.mat']),'cellQR');
     end
     clearvars whiskers bWhisk breathing ephys whiskingEpochs whiskingEpochsList wEpochMask
 end
 
-writetable(cellQR,fullfile(baseDir,'Analysis','Cell_List.xls'));
+writetable(cellQR,fullfile(baseDir,'Analysis',['Cell_List_' manuscript_version '.xls']));
