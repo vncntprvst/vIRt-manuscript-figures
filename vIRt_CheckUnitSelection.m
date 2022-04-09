@@ -22,16 +22,18 @@ for unitNum=1:numel(keepList)
     PhotoTagPlots(ephys,pulses);
     
     % Tuning
-    NBC_Plots_PhaseTuning(whiskers(bWhisk).angle,whiskers(bWhisk).phase,...
-        ephys,wEpochMask,'whisking',false,false);
-    answer = questdlg('Check individual epochs?','Phase Tuning', ...
-        'Yes', 'No','No');
-    switch answer
-        case 'Yes'
-            NBC_Plots_PhaseTuning(whiskers(bWhisk).angle,whiskers(bWhisk).phase,...
-                ephys,wEpochMask,'whisking',true,false);
+    for wNum=1:numel(bWhisk)
+        NBC_Plots_PhaseTuning(whiskers(bWhisk(wNum)).angle,whiskers(bWhisk(wNum)).phase,...
+            ephys,wEpochMask,'whisking',false,false);
+        
+        answer = questdlg('Check individual epochs?','Phase Tuning', ...
+            'Yes', 'No','No');
+        switch answer
+            case 'Yes'
+                NBC_Plots_PhaseTuning(whiskers(bWhisk(wNum)).angle,whiskers(bWhisk(wNum)).phase,...
+                    ephys,wEpochMask,'whisking',true,false);
+        end
     end
-    
     prompt = {'Whisker Phase Tuning','Best Epoch','Phototagged'};
     dlgtitle = ['Unit ' num2str(keepList(unitNum)) 'Quality'];
     dims = 1;
