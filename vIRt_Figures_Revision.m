@@ -13,8 +13,10 @@ baseDir='D:\Vincent\';
 % Data already saved with vIRt_SaveData
 
 load(fullfile(baseDir,'Analysis','Cell_List_rev1.mat'))
+cellList=cellQR; clearvars cellQR;
+cellList.PT=categorical(cellList.unitPT);
 allCells=1:size(cellList,1);
-PTCells=find(cellList.PT==1);
+PTCells=find(cellList.PT=='1');
 
 doPlot={'GFE3';'PTPlots'}; 
 
@@ -22,8 +24,8 @@ if contains(doPlot,'Slow')
     %Slow oscillation analysis:
     load(fullfile(baseDir,'Analysis','SlowOscillationIdx.mat'))
     tunedCells= find(lowOscillationIdx); %see "Spectrum" analysis below
-elseif contains(doPlot,'GFE3')
-    tunedCells=contains(cellList.("XP type"),'vIRt ChRmine/EGFP PT');
+elseif any(contains(doPlot,'GFE3'))
+    tunedCells=find(cellList.("XP type")=='vIRt ChRmine/EGFP PT');
 else
     tunedCells=find(cellList.Tuning==1);
 end
@@ -34,33 +36,132 @@ fprintf('Number of mice n = %d\n', numel(unique(cellList.Subject(tunedCells))));
 
 if any(contains(doPlot,'GFE3'))
 % increase in activity upon whisking (histogram + sdf)
+epochSDF=cell(numel(tunedCells),1);
     for cellNum=1:numel(tunedCells)
             uIdx=tunedCells(cellNum);
             sessID=[char(cellList.Session(uIdx)) '_' num2str(cellList.RecordingID(uIdx))];
             dataDir=fullfile(baseDir,'Analysis','Data',sessID);
-            load(fullfile(dataDir,[sessID '_behavior.mat']),'whiskers','bWhisk');
+            load(fullfile(dataDir,[sessID '_behavior.mat']),'whiskers','bWhisk',...
+                'wEpochMask','whiskingEpochs','whiskingEpochsList');
             load(fullfile(dataDir,[sessID '_ephys.mat']),'ephys');
             load(fullfile(dataDir,[sessID '_pulses.mat']),'pulses');
-%             spikes=load(fullfile(dataDir,[sessID '_Unit' num2str(cellList.unitIndex(uIdx)) '.mat']));
+            spikes=load(fullfile(dataDir,[sessID '_Unit' num2str(cellList.unitIndex(uIdx)) '.mat']));
 %             ephys.selectedUnits=spikes.unitId;
             load(fullfile(dataDir,[sessID '_recInfo.mat']),'recInfo');
             ephys.recInfo=recInfo;
             
+            % re-compute SDF
+            ephys.spikeRate=EphysFun.MakeSDF(ephys.rasters,20);
+            
             cWisk=contains({whiskers(bWhisk).side},'right');
-            
-            ampThd=18;%amplitude threshold
-            freqThld=1; %frequency threshold
-            minBoutDur=1000; % minimum whisking bout duration: 1s
-            
-            [whiskingEpochs,whiskingEpochsList]=vIRt_Epochs(whiskers,bWhisk(cWisk),ampThd,freqThld,minBoutDur);
+            wEpochEphys=bwconncomp(wEpochMask{cWisk}.ephys);  
+            wEpochBehav=whiskingEpochsList{cWisk};
             
             %get transition to whisking epochs
-            for epochNum=1:numel(whiskingEpochsList{1, 1}.PixelIdxListSorted)
-                figure; 
-                subplot()
+            numEpochs=min([numel(wEpochEphys.PixelIdxList),...
+                numel(wEpochBehav.PixelIdxList)]);
+            wChanges=struct('dAngle',[],'dAmp',[],'dSP',[]);
+            epochSDF{cellNum}=nan(numEpochs,2000);
+            for epochNum=1:numEpochs
+                wEpoch=wEpochBehav.PixelIdxList{epochNum};
+                wEpoch=wEpoch(1)-1000:wEpoch(1)+999;
+                wAngle=whiskers(bWhisk(cWisk)).angle(wEpoch);
+                wAmp=whiskers(bWhisk(cWisk)).amplitude(wEpoch);
+                wSP=whiskers(bWhisk(cWisk)).setPoint(wEpoch);
+                
+                % check that the whisking period meets minimum requirements    
+                wChanges(epochNum).dAngle=mean(wAngle(1001:2000))-mean(wAngle(1:1000));
+                wChanges(epochNum).dAmp=mean(wAmp(1001:2000))-mean(wAmp(1:1000));
+                wChanges(epochNum).dSP=mean(wSP(1001:2000))-mean(wSP(1:1000));
+            
+                if wChanges(epochNum).dAmp<10 || wChanges(epochNum).dSP<3
+                    continue
+                end
+                
+                wEpoch=wEpochEphys.PixelIdxList{epochNum};
+                wEpoch=wEpoch(1)-1000:wEpoch(1)+999;
+                  
+                epochSDF{cellNum}(epochNum,:)=ephys.spikeRate(wEpoch);
+%                 epochRaster=ephys.rasters(wEpoch);
+                
+%                 trace = ephys.traces.ReadFcn(ephys.traces.Files{1},...
+%                     ephys.recInfo.numRecChan,wEpoch(1)*30:wEpoch(end)*30);
+%                 preprocOption={'CAR','all'};
+%                 trace=PreProcData(trace,ephys.recInfo.samplingRate,preprocOption);
+%                 keepTrace=27;
+%                 trace=trace(keepTrace,:);
+                
+%                 figure; 
+%                 subplot(2,1,1); plot(wAngle)
+%                 subplot(2,1,2); plot(epochSDF{cellNum})
+                
+%                 subplot(4,1,3); plot(trace)
+%                 subplot(4,1,4); imagesc(epochRaster)
+                
+%                 %sanity check 
+%                 figure; hold on
+%                 plot(whiskers(bWhisk(cWisk)).angle)
+%                 wEpochs=zeros(1,numel(whiskers(bWhisk(cWisk)).angle));
+%                 wEpochs(vertcat(wEpochBehav.PixelIdxList{:}))=1;
+%                 plot(wEpochs*100+60)
+%                 
+%                 figure; hold on
+%                 plot(trace)
+%                 wEpochs=zeros(1,numel(trace));
+%                 wEpochs(vertcat(wEpochEphys.PixelIdxList{:})*30)=1;
+%                 plot(wEpochs*200)
+%                 
+%                 plot(find(ephys.rasters)*30,ones(1,numel(find(ephys.rasters)))*-400,'gd')
+                
                 
             end
+            
+            epochSDF{cellNum}=epochSDF{cellNum}(~isnan(epochSDF{cellNum}(:,1)),:);
+            figure, hold on
+            for epochNum=1:size(epochSDF{cellNum},1)
+                plot(epochSDF{cellNum}(epochNum,:),'color',[0.5 0.5 0.5 0.5])
+            end
+            plot(mean(epochSDF{cellNum}),'k','LineWidth',1.5)
+            plot(median(epochSDF{cellNum}),'b','LineWidth',1.5)
     end
+        
+    whiskTransitionSR=zscore(vertcat(epochSDF{:}),[],2);
+%     foo=cellfun(@(x) mean(x), epochSDF, 'UniformOutput', false);
+%     whiskTransitionSR=zscore(vertcat(foo{:}),[],2);
+
+    meanWTSR=nanmean(whiskTransitionSR);
+    semWTSR=std(whiskTransitionSR)/ sqrt(size(whiskTransitionSR,1));
+    semWTSR=nanmean(semWTSR);   
+    
+%     [meanWTSR, ~, semWTSR]=conv_raster(whiskTransitionSR,conv_sigma,1);
+    
+    figure('name','Firing rate of Photo-tagged vIRt GFE3 during transition to whisking',...
+        'Color','white'); hold on;
+    %plot sem
+    box off;
+    patch([1:length(meanWTSR),fliplr(1:length(meanWTSR))],[meanWTSR-semWTSR,fliplr(meanWTSR+semWTSR)],...
+        'k','EdgeColor','none','FaceAlpha',0.2); 
+    %plot sdfs
+    FRploth=plot(gca,meanWTSR,'Color','k','LineWidth',1.8);
+    % plot whisking initiation
+    xline(1000,'color',[0.5 0.5 0.5 0.5],'linewidth',1.5,'DisplayName','whisking initiation')
+    axis(gca,'tight');
+    set(gca,'XTick',0:100:2000,'XTickLabel',-1:0.1:1,'Color','white','FontSize',10,'FontName','Helvetica','TickDir','out');
+    xlabel(gca,'Time (s)'); ylabel(gca,'Firing rate (z-score, a.u.)'); 
+    
+    figure('name','Example firing rate of photo-tagged vIRt GFE3 during transition to whisking',...
+        'Color','white'); hold on;
+    box off;
+    %plot sdfs
+    plot(gca,epochSDF{1}(4,:),'Color','k','LineWidth',1.8);
+    % plot whisking initiation
+    xline(1000,'color',[0.5 0.5 0.5 0.5],'linewidth',1.5,'DisplayName','whisking initiation')
+    axis(gca,'tight');
+    set(gca,'XTick',0:100:2000,'XTickLabel',-1:0.1:1,'Color','white','FontSize',10,'FontName','Helvetica','TickDir','out');
+    xlabel(gca,'Time (s)'); ylabel(gca,'Firing rate (spk/s)');
+    
+    
+    
 end
 
 %% Population phase tuning
