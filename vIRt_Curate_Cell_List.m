@@ -9,15 +9,20 @@ cmap=lines;cmap=[cmap(1:7,:);(lines+flipud(copper))/2;autumn];
 baseDir='D:\Vincent\';
 load(fullfile(baseDir,'Analysis','vIRt_sessions_analysis.mat'));
 
-cellQR=table('Size',[0,10],'VariableTypes',...
-    {'categorical','categorical','double','double','logical','string','string','string','double','double'},...
-    'VariableNames',{'Subject','Session','RecordingID','unitIndex','keepIndex',...
-    'unitTuning','tuningEpochs','unitPT','unitFrequency','unitQuality'});
+vIRt_sess.("XP type")=categorical(vIRt_sess.("XP type"));
+vIRt_sess.("Manuscript version")=categorical(vIRt_sess.("Manuscript version"));
 
-%% For Revision 1 
+cellQR=table('Size',[0,12],'VariableTypes',...
+    {'categorical','categorical','double','double','logical','string','string',...
+    'string','double','double','categorical','categorical'},...
+    'VariableNames',...
+    {'Subject','Session','RecordingID','unitIndex','keepIndex','unitTuning',...
+    'tuningEpochs','unitPT','unitFrequency','unitQuality','XP type','Manuscript version'});
+
+%% For Revision 1
 manuscript_version='rev1';
 rev1_vIRt_sessIdx=contains(vIRt_sess.KeepList,"1") &...
-    contains(vIRt_sess.("Manuscript version"),manuscript_version);
+    vIRt_sess.("Manuscript version")==manuscript_version;
 vIRt_sess=vIRt_sess(rev1_vIRt_sessIdx,:);
 
 %% load data across sessions
@@ -60,9 +65,9 @@ for sessionNum=1:size(vIRt_sess,1)
             unitIdx=ismember(ephys.qualityReport.unitIndex,ephys.selectedUnits);
             cellQR=vertcat(cellQR,...
                 horzcat(repmat(vIRt_sess(sessionNum,1:3),sum(unitIdx),1),...
-                ephys.qualityReport(unitIdx,:)));
+                ephys.qualityReport(unitIdx,:),repmat(vIRt_sess(sessionNum,10:11),sum(unitIdx),1)));
         end
-            save(fullfile(baseDir,'Analysis',['Cell_List_' manuscript_version '.mat']),'cellQR');
+        save(fullfile(baseDir,'Analysis',['Cell_List_' manuscript_version '.mat']),'cellQR');
     end
     clearvars whiskers bWhisk breathing ephys whiskingEpochs whiskingEpochsList wEpochMask
 end

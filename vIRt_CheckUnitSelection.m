@@ -24,14 +24,14 @@ for unitNum=1:numel(keepList)
     % Tuning
     for wNum=1:numel(bWhisk)
         NBC_Plots_PhaseTuning(whiskers(bWhisk(wNum)).angle,whiskers(bWhisk(wNum)).phase,...
-            ephys,wEpochMask,'whisking',false,false);
+            ephys,wEpochMask{wNum},'whisking',false,false);
         
         answer = questdlg('Check individual epochs?','Phase Tuning', ...
             'Yes', 'No','No');
         switch answer
             case 'Yes'
                 NBC_Plots_PhaseTuning(whiskers(bWhisk(wNum)).angle,whiskers(bWhisk(wNum)).phase,...
-                    ephys,wEpochMask,'whisking',true,false);
+                    ephys,wEpochMask{wNum},'whisking',true,false);
         end
     end
     prompt = {'Whisker Phase Tuning','Best Epoch','Phototagged'};

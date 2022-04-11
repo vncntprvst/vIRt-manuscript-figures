@@ -10,7 +10,13 @@ ephys=vIRt_SortByDepth(ephys);
 % traces=ephys.traces; % If traces are needed, get them from original location listed in recInfo.sessFiles
 recInfo=ephys.recInfo;
 recInfo.sessFiles=sessData.sessFiles;
-ephys=rmfield(ephys,{'traces';'recInfo'});
+traces=ephys.traces; varInfo=whos('traces'); clearvars traces
+switch varInfo.class
+    case 'matlab.io.datastore.FileDatastore' % datastore
+    otherwise
+        ephys=rmfield(ephys,{'traces';'recInfo'});
+end
+
 pulses=sessData.pulses;
 
 if ~exist(fullfile(baseDir,'Analysis','Data',sessBaseName),'dir')
