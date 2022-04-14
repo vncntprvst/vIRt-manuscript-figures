@@ -1,9 +1,12 @@
-function [thetas,edges,phaseStats,phaseTuning,phaseCoherence]=vIRt_PhaseTuning(whiskerPhase,ephysData,dataMask,splitEpochs)
+function [thetas,edges,phaseStats,phaseTuning,phaseCoherence,rsbinMeanSpikeRate]=vIRt_PhaseTuning(whiskerPhase,ephysData,dataMask,splitEpochs)
 
 %% Data masking: look at each whisking epoch
 wEpochs.behav=bwconncomp(dataMask.behav);
 % mask epochs with short whisking bouts
 durationThd=cellfun(@(x) length(x),wEpochs.behav.PixelIdxList)>=3000;
+if ~any(durationThd)
+    durationThd=cellfun(@(x) length(x),wEpochs.behav.PixelIdxList)>=1000;
+end
 dataMask.behav(vertcat(wEpochs.behav.PixelIdxList{~durationThd}))=false;
 wEpochs.behav.PixelIdxList=wEpochs.behav.PixelIdxList(durationThd);
 if splitEpochs
@@ -118,8 +121,8 @@ for unitNum=1:size(spikeRasters,1)
             end
             
             %           rescale
-            rsbinMeanSpikeRate=sum(reshape([binMeanSpikeRate(2:end),binMeanSpikeRate(1)],2,numBins))/2;
-            rsbinMeanSpikeRate=[rsbinMeanSpikeRate(end) rsbinMeanSpikeRate];
+            rsbinMeanSpikeRate{unitNum,wEpochNum}=sum(reshape([binMeanSpikeRate(2:end),binMeanSpikeRate(1)],2,numBins))/2;
+            rsbinMeanSpikeRate{unitNum,wEpochNum}=[rsbinMeanSpikeRate{unitNum,wEpochNum}(end) rsbinMeanSpikeRate{unitNum,wEpochNum}];
             
             %% convert to thetas: make as many phase # as FR for that phase #
             thetas{unitNum,wEpochNum}=cell(numel(centers),1);
@@ -198,7 +201,7 @@ for unitNum=1:size(spikeRasters,1)
         
         %% average firing rate across phase
         subplot(3,1,3);hold on;
-        plot(linspace(-pi,pi, numBins+1), rsbinMeanSpikeRate, 'LineWidth',2) %centers %,'color',cmap(unitNum,:));%'k'
+        plot(linspace(-pi,pi, numBins+1), rsbinMeanSpikeRate{unitNum,wEpochNum}, 'LineWidth',2) %centers %,'color',cmap(unitNum,:));%'k'
         
         axis tight
         yl = ylim;
