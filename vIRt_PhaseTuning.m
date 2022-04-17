@@ -96,7 +96,7 @@ for unitNum=1:size(spikeRasters,1)
             %     modulation depth of the averaged whisking response
             
             phaseCoherence(wEpochNum)=vIRt_PhaseCoherence(eWhiskerPhase(1:min([90000 end])),...
-                unitSpikeEvent(1:min([90000 end]))); %limit to 30s
+                unitSpikeEvent(1:min([90000 end])),'fast_whisking'); %limit to 30s
 %             phaseCoherence(wEpochNum)=vIRt_PhaseCoherence(eWhiskerPhase,unitSpikeEvent);
 
             clearvars unitSpikeRate
