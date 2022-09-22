@@ -196,6 +196,7 @@ if doPlots
     xlabel('Pre/Post event')
     ylabel('ISI (seconds, log scale)')
     
+%     all_ISIs=cell2table(cellfun(@(x) x', allISIs, 'UniformOutput', false));
     
     %% Plot Rhythmicity
     
@@ -297,6 +298,8 @@ if doPlots
     set(gca,'YTickLabel',get(gca,'Ytick'));
     xlabel('Pre/Post event')
     ylabel('IBI frequency (Hz)')
+    
+%     all_IBIs=cell2table(cellfun(@(x) x', allIBIs, 'UniformOutput', false));
     
     %% Plot IBI spectrum
     
